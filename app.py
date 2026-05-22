@@ -8,7 +8,7 @@ import os
 import re
 import secrets
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from http import cookies
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
@@ -33,6 +33,14 @@ REDIS_CLIENT = None
 
 def now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def json_default(value):
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d %H:%M:%S")
+    if isinstance(value, date):
+        return value.strftime("%Y-%m-%d")
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
 class CursorAdapter:
@@ -363,7 +371,7 @@ class App(BaseHTTPRequestHandler):
         return
 
     def send_json(self, payload, status=200, headers=None):
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        body = json.dumps(payload, ensure_ascii=False, default=json_default).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
