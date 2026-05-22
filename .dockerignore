@@ -1,0 +1,8 @@
+.git
+__pycache__
+*.pyc
+*.log
+data
+mysql-data
+redis-data
+兑换网站.zip

@@ -112,6 +112,25 @@ def db():
     return MySQLAdapter(conn)
 
 
+def wait_for_dependencies():
+    deadline = time.time() + int(os.environ.get("STARTUP_WAIT_SECONDS", "120"))
+    last_error = None
+    while time.time() < deadline:
+        try:
+            with db() as conn:
+                conn.execute("SELECT 1")
+            if REDIS_URL:
+                client = redis_client()
+                if not client:
+                    raise RuntimeError("Redis 驱动未安装或不可用")
+            return
+        except Exception as exc:
+            last_error = exc
+            print(f"等待 MySQL/Redis 就绪: {exc}", flush=True)
+            time.sleep(2)
+    raise RuntimeError(f"MySQL/Redis 启动超时: {last_error}")
+
+
 def schema_statements():
     pk = "BIGINT PRIMARY KEY AUTO_INCREMENT"
     idx_prefix = "CREATE INDEX"
@@ -825,6 +844,7 @@ class LocalHTTPServer(ThreadingHTTPServer):
 
 
 if __name__ == "__main__":
+    wait_for_dependencies()
     init_db()
     print(f"CDK 兑换系统已启动: http://{HOST}:{PORT}")
     print("默认后台账号: Fyanxv / Fyb2530+")

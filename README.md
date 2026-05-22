@@ -55,13 +55,24 @@ tail -n 80 /opt/duihuan/app.log
 
 ## Docker Compose
 
-高并发部署文件:
+先修改 `docker-compose.yml` 里的两个 MySQL 密码:
 
 ```bash
-docker compose -f docker-compose.high-concurrency.yml up -d --build
+nano docker-compose.yml
 ```
 
-上线前必须修改 `docker-compose.high-concurrency.yml` 里的 MySQL 密码。
+启动:
+
+```bash
+docker compose up -d --build
+```
+
+查看状态和日志:
+
+```bash
+docker compose ps
+docker compose logs -f duihuan
+```
 
 ## 秒抢说明
 

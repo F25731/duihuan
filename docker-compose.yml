@@ -45,11 +45,10 @@ services:
         condition: service_healthy
     ports:
       - "8877:8877"
-    volumes:
-      - ./data:/app/data
     environment:
       HOST: 0.0.0.0
       PORT: 8877
+      STARTUP_WAIT_SECONDS: 120
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: duihuan
