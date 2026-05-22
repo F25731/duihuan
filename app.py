@@ -47,6 +47,9 @@ class CursorAdapter:
     def __init__(self, cursor):
         self.cursor = cursor
 
+    def __iter__(self):
+        return iter(self.cursor.fetchall())
+
     def fetchone(self):
         return self.cursor.fetchone()
 
