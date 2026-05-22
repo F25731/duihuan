@@ -468,7 +468,7 @@
             <label class="lbl">库存内容 — 一行一条,无字符长度限制,支持超长字符串</label>
             <textarea class="textarea" id="stockTextarea" placeholder="示例:&#10;account_a@hotmail.com----password123----verylongtokenhere...&#10;account_b@hotmail.com----password456----anotherverylongstring..."></textarea>
             <div class="flex-between mt-8">
-              <span class="muted">已识别条数: <b id="lineCount" style="color:var(--text);">0</b> 行 · 自动忽略空行与重复行</span>
+              <span class="muted">已识别条数: <b id="lineCount" style="color:var(--text);">0</b> 行 · 自动忽略空行</span>
               <div class="row">
                 <button class="btn btn-sm">从文件读取 .txt</button>
                 <button class="btn btn-sm" onclick="document.getElementById('stockTextarea').value='';document.getElementById('lineCount').textContent='0';">清空</button>

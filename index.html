@@ -436,6 +436,7 @@
       document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
       t.classList.add('active');
       document.getElementById('panel-' + t.dataset.tab).classList.add('active');
+      if(t.dataset.tab === 'redeem') resetQueryState();
     });
   });
 
@@ -457,10 +458,20 @@
     batchCount.textContent = lines.length + ' / 50';
     batchCount.style.color = lines.length > 50 ? 'var(--danger)' : '';
     if(lines.length === 0){
-      queryResults.innerHTML = '';
-      queryResults.style.display = 'none';
+      resetQueryResult();
     }
   });
+
+  function resetQueryResult(){
+    queryResults.innerHTML = '';
+    queryResults.style.display = 'none';
+  }
+  function resetQueryState(){
+    cdkBatch.value = '';
+    batchCount.textContent = '0 / 50';
+    batchCount.style.color = '';
+    resetQueryResult();
+  }
 
   async function api(path, options = {}){
     const res = await fetch(path, {
@@ -621,6 +632,8 @@
       };
       pushHistory(item);
       renderRedeemSuccess(item);
+      cdkInput.value = '';
+      cdkCount.textContent = '0 字符';
       await loadStocks();
       showToast('兑换成功');
     }catch(err){

@@ -528,11 +528,12 @@ class App(BaseHTTPRequestHandler):
             mode = p.get("mode", "append")
             raw = p.get("contents", [])
             lines = raw if isinstance(raw, list) else str(raw).splitlines()
-            lines = list(dict.fromkeys([x.strip() for x in lines if x.strip()]))
+            lines = [x.strip() for x in lines if x.strip()]
             batch_no = datetime.now().strftime("%Y%m%d%H%M%S")
             if mode == "overwrite":
                 conn.execute("DELETE FROM inventory WHERE product_id=? AND status=0", (product_id,))
             if mode == "dedupe":
+                lines = list(dict.fromkeys(lines))
                 exists = set(r["content"] for r in conn.execute("SELECT content FROM inventory WHERE product_id=?", (product_id,)))
                 lines = [x for x in lines if x not in exists]
             conn.executemany(
