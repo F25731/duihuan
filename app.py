@@ -8,6 +8,8 @@ import os
 import re
 import secrets
 import sqlite3
+import subprocess
+import sys
 import time
 from datetime import datetime, timedelta
 from http import cookies
@@ -24,6 +26,9 @@ PORT = int(os.environ.get("PORT", "8765"))
 CDK_CHARS = "ABCDEFGHJKMNPQRSTVWXYZ23456789"
 CDK_RE = re.compile(r"^[A-Z]{3,5}(-[A-Z2-9]{4}){4}$")
 THROTTLE = {}
+REDIS_URL = os.environ.get("REDIS_URL", "").strip()
+REDIS_PREFIX = os.environ.get("REDIS_PREFIX", "duihuan")
+REDIS_CLIENT = None
 
 
 def now_str():
@@ -79,6 +84,43 @@ def row_dict(row):
 
 def rows_dict(rows):
     return [dict(r) for r in rows]
+
+
+def redis_client():
+    global REDIS_CLIENT
+    if not REDIS_URL:
+        return None
+    if REDIS_CLIENT is not None:
+        return REDIS_CLIENT
+    try:
+        import redis
+    except ImportError:
+        return None
+    REDIS_CLIENT = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+    REDIS_CLIENT.ping()
+    return REDIS_CLIENT
+
+
+def redis_key(*parts):
+    return ":".join([REDIS_PREFIX, *[str(p) for p in parts]])
+
+
+def rebuild_inventory_queue(conn, product_id):
+    r = redis_client()
+    if not r:
+        return 0
+    key = redis_key("inventory", product_id)
+    rows = conn.execute(
+        "SELECT id FROM inventory WHERE product_id=? AND status=0 ORDER BY id",
+        (product_id,),
+    ).fetchall()
+    pipe = r.pipeline()
+    pipe.delete(key)
+    ids = [str(row["id"]) for row in rows]
+    if ids:
+        pipe.rpush(key, *ids)
+    pipe.execute()
+    return len(ids)
 
 
 def get_setting(conn, key, default=""):
@@ -383,6 +425,9 @@ class App(BaseHTTPRequestHandler):
         if not CDK_RE.match(code):
             self.write_redeem_log(conn, code, None, 2)
             return self.fail(1001, fail_text)
+        r = redis_client()
+        if r:
+            return self.public_redeem_redis(conn, r, code, fail_text, ip)
         try:
             conn.execute("BEGIN IMMEDIATE")
             cdk = conn.execute("SELECT * FROM cdk WHERE code=?", (code,)).fetchone()
@@ -441,6 +486,87 @@ class App(BaseHTTPRequestHandler):
             except Exception:
                 pass
             raise
+
+    def public_redeem_redis(self, conn, r, code, fail_text, ip):
+        lock_key = redis_key("lock", "cdk", code)
+        if not r.set(lock_key, "1", nx=True, ex=15):
+            return self.fail(1007, "卡密正在处理中,请勿重复提交")
+        inv = None
+        product = None
+        cdk = None
+        queue_key = None
+        try:
+            cdk = conn.execute("SELECT * FROM cdk WHERE code=?", (code,)).fetchone()
+            if not cdk:
+                self.write_redeem_log(conn, code, None, 2)
+                return self.fail(1001, fail_text)
+            if cdk["expire_at"] and cdk["expire_at"] < now_str():
+                conn.execute("UPDATE cdk SET status=3 WHERE id=?", (cdk["id"],))
+                self.write_redeem_log(conn, code, cdk["product_id"], 4)
+                return self.fail(1004, "卡密已过期")
+            if cdk["status"] == 1:
+                self.write_redeem_log(conn, code, cdk["product_id"], 3)
+                return self.fail(1002, "卡密已使用")
+            if cdk["status"] != 0:
+                self.write_redeem_log(conn, code, cdk["product_id"], 4)
+                return self.fail(1003, fail_text)
+            product = conn.execute("SELECT * FROM product WHERE id=? AND status=1", (cdk["product_id"],)).fetchone()
+            if not product:
+                self.write_redeem_log(conn, code, cdk["product_id"], 5)
+                return self.fail(1005, "商品已下架")
+            queue_key = redis_key("inventory", product["id"])
+            for attempt in range(8):
+                inventory_id = r.lpop(queue_key)
+                if inventory_id is None and attempt == 0:
+                    rebuild_inventory_queue(conn, product["id"])
+                    inventory_id = r.lpop(queue_key)
+                if inventory_id is None:
+                    break
+                inv = conn.execute(
+                    "SELECT * FROM inventory WHERE id=? AND product_id=? AND status=0",
+                    (int(inventory_id), product["id"]),
+                ).fetchone()
+                if inv:
+                    break
+            if not inv:
+                self.write_redeem_log(conn, code, product["id"], 5)
+                return self.fail(1006, "库存不足")
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                fresh = conn.execute("SELECT status FROM cdk WHERE id=?", (cdk["id"],)).fetchone()
+                fresh_inv = conn.execute("SELECT status FROM inventory WHERE id=?", (inv["id"],)).fetchone()
+                if not fresh or fresh["status"] != 0 or not fresh_inv or fresh_inv["status"] != 0:
+                    conn.execute("ROLLBACK")
+                    return self.fail(1002, "卡密或库存已被处理")
+                t = now_str()
+                conn.execute(
+                    "UPDATE cdk SET status=1,used_at=?,used_ip=?,inventory_id=? WHERE id=?",
+                    (t, ip, inv["id"], cdk["id"]),
+                )
+                conn.execute(
+                    "UPDATE inventory SET status=1,delivered_cdk_id=?,delivered_at=? WHERE id=?",
+                    (cdk["id"], t, inv["id"]),
+                )
+                conn.execute(
+                    "INSERT INTO redeem_log(type,cdk_code,product_id,ip,ua,result,created_at) VALUES(?,?,?,?,?,?,?)",
+                    (1, code, product["id"], ip, self.headers.get("User-Agent", "")[:255], 1, t),
+                )
+                conn.execute("COMMIT")
+                return self.ok({
+                    "product": {"id": product["id"], "name": product["name"], "intro": product["intro"], "usage_text": product["usage_text"]},
+                    "content": inv["content"],
+                    "time": t,
+                })
+            except Exception:
+                try:
+                    conn.execute("ROLLBACK")
+                except Exception:
+                    pass
+                if inv and queue_key:
+                    r.lpush(queue_key, inv["id"])
+                raise
+        finally:
+            r.delete(lock_key)
 
     def write_redeem_log(self, conn, code, product_id, result):
         conn.execute(
@@ -513,6 +639,9 @@ class App(BaseHTTPRequestHandler):
             conn.execute("DELETE FROM inventory WHERE product_id=?", (pid,))
             conn.execute("DELETE FROM cdk WHERE product_id=?", (pid,))
             conn.execute("DELETE FROM product WHERE id=?", (pid,))
+            r = redis_client()
+            if r:
+                r.delete(redis_key("inventory", pid))
             admin_log(conn, admin["id"], "delete_product", product["name"], self.ip())
             return self.ok()
         if path == "/admin/inventory" and method == "GET":
@@ -540,13 +669,28 @@ class App(BaseHTTPRequestHandler):
                 "INSERT INTO inventory(product_id,content,status,expire_at,batch_no,created_at) VALUES(?,?,?,?,?,?)",
                 [(product_id, line, 0, None, batch_no, now_str()) for line in lines],
             )
+            rebuild_inventory_queue(conn, product_id)
             admin_log(conn, admin["id"], "import_inventory", f"product #{product_id} +{len(lines)}", self.ip())
             return self.ok({"count": len(lines), "batch_no": batch_no})
         if path.startswith("/admin/inventory/") and method == "DELETE":
             iid = int(path.rsplit("/", 1)[-1])
+            row = conn.execute("SELECT product_id FROM inventory WHERE id=?", (iid,)).fetchone()
             conn.execute("DELETE FROM inventory WHERE id=? AND status=0", (iid,))
+            if row:
+                r = redis_client()
+                if r:
+                    r.lrem(redis_key("inventory", row["product_id"]), 0, str(iid))
             admin_log(conn, admin["id"], "delete_inventory", f"#{iid}", self.ip())
             return self.ok()
+        if path == "/admin/cache/rebuild" and method == "POST":
+            if not redis_client():
+                return self.fail(5001, "Redis 未启用", 400)
+            rows = conn.execute("SELECT id FROM product").fetchall()
+            total = 0
+            for row in rows:
+                total += rebuild_inventory_queue(conn, row["id"])
+            admin_log(conn, admin["id"], "rebuild_cache", f"inventory {total}", self.ip())
+            return self.ok({"queued": total})
         if path == "/admin/cdks" and method == "GET":
             rows = conn.execute(
                 """SELECT c.*,p.name product_name FROM cdk c JOIN product p ON p.id=c.product_id

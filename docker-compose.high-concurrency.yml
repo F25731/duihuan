@@ -1,0 +1,26 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: duihuan-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./redis-data:/data
+
+  duihuan:
+    build: .
+    container_name: duihuan
+    restart: always
+    depends_on:
+      - redis
+    ports:
+      - "8877:8877"
+    volumes:
+      - ./data:/app/data
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8877
+      REDIS_URL: redis://redis:6379/0
+      REDIS_PREFIX: duihuan
+      ADMIN_USERNAME: Fyanxv
+      ADMIN_PASSWORD: "Fyb2530+"
