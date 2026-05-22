@@ -307,12 +307,12 @@
         <div class="page-head"><h1>仪表盘</h1><p>资源库与兑换情况总览</p></div>
 
         <div class="grid grid-6">
-          <div class="card"><div class="label">商品总数</div><div class="num">12</div><div class="delta up">本周新增 +2</div></div>
-          <div class="card"><div class="label">库存总量</div><div class="num">8,431</div><div class="delta down">较昨日 -126</div></div>
-          <div class="card"><div class="label">已生成 CDK</div><div class="num">1,479,770</div><div class="delta up">+128 今日</div></div>
-          <div class="card"><div class="label">未使用 CDK</div><div class="num">12,302</div><div class="delta up">健康</div></div>
-          <div class="card"><div class="label">今日兑换</div><div class="num">48</div><div class="delta up">+12</div></div>
-          <div class="card"><div class="label">24h 查询</div><div class="num">316</div><div class="delta up">+25%</div></div>
+          <div class="card"><div class="label">商品总数</div><div class="num">0</div><div class="delta up">实时数据</div></div>
+          <div class="card"><div class="label">库存总量</div><div class="num">0</div><div class="delta up">实时数据</div></div>
+          <div class="card"><div class="label">已生成 CDK</div><div class="num">0</div><div class="delta up">实时数据</div></div>
+          <div class="card"><div class="label">未使用 CDK</div><div class="num">0</div><div class="delta up">实时数据</div></div>
+          <div class="card"><div class="label">今日兑换</div><div class="num">0</div><div class="delta up">实时数据</div></div>
+          <div class="card"><div class="label">24h 查询</div><div class="num">0</div><div class="delta up">实时数据</div></div>
         </div>
 
         <div class="card-block">
@@ -326,18 +326,10 @@
           </div>
           <div class="chart">
             <svg viewBox="0 0 800 240" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="g1" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stop-color="#3b82f6" stop-opacity=".35"/>
-                  <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
-                </linearGradient>
-              </defs>
-              <path d="M0,200 L60,170 L120,180 L180,140 L240,150 L300,110 L360,120 L420,80 L480,95 L540,60 L600,85 L660,55 L720,70 L800,40 L800,240 L0,240 Z" fill="url(#g1)"/>
-              <path d="M0,200 L60,170 L120,180 L180,140 L240,150 L300,110 L360,120 L420,80 L480,95 L540,60 L600,85 L660,55 L720,70 L800,40" stroke="#2563eb" stroke-width="2" fill="none"/>
             </svg>
           </div>
           <div class="chart-x">
-            <span>05-09</span><span>05-11</span><span>05-13</span><span>05-15</span><span>05-17</span><span>05-19</span><span>05-21</span><span>今日</span>
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
           </div>
         </div>
 
@@ -346,11 +338,7 @@
             <div class="head"><h3>最近兑换</h3><a class="muted" href="#">查看全部 →</a></div>
             <table class="table">
               <thead><tr><th>卡密</th><th>商品</th><th>时间</th><th>状态</th></tr></thead>
-              <tbody>
-                <tr><td class="code">BASE-A1B2-C3D4-E5F6-G7H8</td><td>基础成品号</td><td>2026-05-22 14:36</td><td><span class="badge badge-green">成功</span></td></tr>
-                <tr><td class="code">PRO-9X8Y-7Z6W-5V4U-3T2S</td><td>Pro 月卡</td><td>2026-05-22 14:30</td><td><span class="badge badge-green">成功</span></td></tr>
-                <tr><td class="code">BASE-XXXX-YYYY-ZZZZ-WWWW</td><td>—</td><td>2026-05-22 14:21</td><td><span class="badge badge-red">卡密无效</span></td></tr>
-              </tbody>
+              <tbody></tbody>
             </table>
           </div>
 
@@ -358,12 +346,7 @@
             <div class="head"><h3>低库存预警</h3><a class="muted" href="#">前往补货 →</a></div>
             <table class="table">
               <thead><tr><th>商品</th><th>剩余</th><th>状态</th></tr></thead>
-              <tbody>
-                <tr><td>Pro 季卡</td><td>6</td><td><span class="stockcell"><i class="crit"></i><i></i><i></i><i></i><i></i></span></td></tr>
-                <tr><td>Pro 月卡</td><td>42</td><td><span class="stockcell"><i class="mid"></i><i class="mid"></i><i class="mid"></i><i></i><i></i></span></td></tr>
-                <tr><td>独享号 · 限定</td><td>0</td><td><span class="stockcell"><i></i><i></i><i></i><i></i><i></i></span></td></tr>
-                <tr><td>基础成品号</td><td>1,284</td><td><span class="stockcell"><i class="high"></i><i class="high"></i><i class="high"></i><i class="high"></i><i class="high"></i></span></td></tr>
-              </tbody>
+              <tbody></tbody>
             </table>
           </div>
         </div>
@@ -398,37 +381,10 @@
                 <th style="width:200px;">操作</th>
               </tr>
             </thead>
-            <tbody>
-              <tr>
-                <td>#001</td><td>基础成品号</td>
-                <td class="code">BASE</td>
-                <td>1,284</td><td>100</td>
-                <td><span class="stockcell"><i class="high"></i><i class="high"></i><i class="high"></i><i class="high"></i><i class="high"></i></span></td>
-                <td><span class="badge badge-green">上架</span></td>
-                <td class="ops">
-                  <a>编辑</a><a>库存</a><a onclick="openModal('cdkGenModal')">生成卡密</a><a class="danger">下架</a>
-                </td>
-              </tr>
-              <tr>
-                <td>#002</td><td>Pro 订阅 · 月卡</td>
-                <td class="code">PRO</td>
-                <td>42</td><td>100</td>
-                <td><span class="stockcell"><i class="mid"></i><i class="mid"></i><i class="mid"></i><i></i><i></i></span></td>
-                <td><span class="badge badge-yellow">库存低</span></td>
-                <td class="ops"><a>编辑</a><a>库存</a><a onclick="openModal('cdkGenModal')">生成卡密</a><a class="danger">下架</a></td>
-              </tr>
-              <tr>
-                <td>#003</td><td>独享号 · 限定</td>
-                <td class="code">VIP</td>
-                <td>0</td><td>20</td>
-                <td><span class="stockcell"><i></i><i></i><i></i><i></i><i></i></span></td>
-                <td><span class="badge badge-gray">售罄</span></td>
-                <td class="ops"><a>编辑</a><a>库存</a><a onclick="openModal('cdkGenModal')">生成卡密</a><a class="danger">下架</a></td>
-              </tr>
-            </tbody>
+            <tbody></tbody>
           </table>
           <div class="pager">
-            <span>共 3 条</span>
+            <span>共 0 条</span>
             <div class="pages"><span>‹</span><span class="active">1</span><span>›</span></div>
           </div>
         </div>
@@ -448,11 +404,7 @@
           <div class="grid grid-3">
             <div class="field">
               <label class="lbl">选择商品</label>
-              <select class="select">
-                <option>基础成品号 (#001)</option>
-                <option>Pro 订阅 · 月卡 (#002)</option>
-                <option>独享号 · 限定 (#003)</option>
-              </select>
+              <select class="select"></select>
             </div>
             <div class="field">
               <label class="lbl">导入模式</label>
@@ -466,7 +418,7 @@
 
           <div class="field">
             <label class="lbl">库存内容 — 一行一条,无字符长度限制,支持超长字符串</label>
-            <textarea class="textarea" id="stockTextarea" placeholder="示例:&#10;account_a@hotmail.com----password123----verylongtokenhere...&#10;account_b@hotmail.com----password456----anotherverylongstring..."></textarea>
+            <textarea class="textarea" id="stockTextarea" placeholder="每行一条库存内容"></textarea>
             <div class="flex-between mt-8">
               <span class="muted">已识别条数: <b id="lineCount" style="color:var(--text);">0</b> 行 · 自动忽略空行</span>
               <div class="row">
@@ -486,7 +438,7 @@
         </div>
 
         <div class="card-block">
-          <div class="head"><h3>当前库存预览(基础成品号)</h3>
+          <div class="head"><h3>当前库存预览</h3>
             <div class="actions">
               <input class="input btn-sm" style="width:240px;" placeholder="搜索库存内容" />
               <button class="btn">🗑 批量删除</button>
@@ -504,32 +456,7 @@
                 <th style="width:80px;">操作</th>
               </tr>
             </thead>
-            <tbody>
-              <tr>
-                <td><input type="checkbox" /></td>
-                <td>1</td>
-                <td class="code">account_a@hotmail.com----Aa123456----verylongtokenstringverylongtokenstringverylongtokenstring</td>
-                <td class="muted">05-22 09:12</td>
-                <td><span class="badge badge-blue">未发货</span></td>
-                <td class="ops"><a>查看</a><a class="danger">删除</a></td>
-              </tr>
-              <tr>
-                <td><input type="checkbox" /></td>
-                <td>2</td>
-                <td class="code">account_b@hotmail.com----P@ssw0rd----anotherverylongstringanotherverylongstring</td>
-                <td class="muted">05-22 09:12</td>
-                <td><span class="badge badge-green">已发货</span></td>
-                <td class="ops"><a>查看</a><a class="danger">删除</a></td>
-              </tr>
-              <tr>
-                <td><input type="checkbox" /></td>
-                <td>3</td>
-                <td class="code">account_c@hotmail.com----Pwd----verylongdataverylongdataverylongdata</td>
-                <td class="muted">05-21 18:30</td>
-                <td><span class="badge badge-blue">未发货</span></td>
-                <td class="ops"><a>查看</a><a class="danger">删除</a></td>
-              </tr>
-            </tbody>
+            <tbody></tbody>
           </table>
         </div>
       </section>
@@ -549,7 +476,7 @@
           <div class="head">
             <div class="row">
               <input class="input" style="width:260px;" placeholder="按卡密 / 备注搜索" />
-              <select class="select" style="width:180px;"><option>全部商品</option><option>基础成品号</option><option>Pro 月卡</option><option>独享号</option></select>
+              <select class="select" style="width:180px;"><option>全部商品</option></select>
               <select class="select" style="width:140px;"><option>全部状态</option><option>未使用</option><option>已使用</option><option>已禁用</option></select>
               <input class="input" type="date" style="width:160px;" />
             </div>
@@ -573,48 +500,7 @@
                 <th style="width:140px;">操作</th>
               </tr>
             </thead>
-            <tbody>
-              <tr>
-                <td><input type="checkbox" /></td>
-                <td class="code">BASE-A1B2-C3D4-E5F6-G7H8</td>
-                <td>基础成品号</td>
-                <td><span class="badge badge-blue">未使用</span></td>
-                <td class="muted">05-22 09:00</td>
-                <td class="muted">—</td>
-                <td class="muted">卡网批次 #2026</td>
-                <td class="ops"><a>详情</a><a>复制</a><a class="danger">禁用</a></td>
-              </tr>
-              <tr>
-                <td><input type="checkbox" /></td>
-                <td class="code">PRO-9X8Y-7Z6W-5V4U-3T2S</td>
-                <td>Pro 月卡</td>
-                <td><span class="badge badge-green">已使用</span></td>
-                <td class="muted">05-20 11:20</td>
-                <td class="muted">05-20 14:21</td>
-                <td class="muted">代理 A</td>
-                <td class="ops"><a>详情</a><a>复制</a></td>
-              </tr>
-              <tr>
-                <td><input type="checkbox" /></td>
-                <td class="code">VIP-OLD1-OLD2-OLD3-OLD4</td>
-                <td>独享号</td>
-                <td><span class="badge badge-yellow">已过期</span></td>
-                <td class="muted">04-15 10:00</td>
-                <td class="muted">—</td>
-                <td class="muted">—</td>
-                <td class="ops"><a>详情</a><a>复制</a><a class="danger">删除</a></td>
-              </tr>
-              <tr>
-                <td><input type="checkbox" /></td>
-                <td class="code">BASE-TEST-DEMO-0001-AAAA</td>
-                <td>基础成品号</td>
-                <td><span class="badge badge-red">已禁用</span></td>
-                <td class="muted">05-10 12:00</td>
-                <td class="muted">—</td>
-                <td class="muted">测试占用</td>
-                <td class="ops"><a>详情</a><a>启用</a></td>
-              </tr>
-            </tbody>
+            <tbody></tbody>
           </table>
 
           <div class="pager">
@@ -643,13 +529,7 @@
           </div>
           <table class="table">
             <thead><tr><th>时间</th><th>类型</th><th>卡密</th><th>商品</th><th>IP</th><th>结果</th></tr></thead>
-            <tbody>
-              <tr><td class="muted">05-22 14:36:12</td><td><span class="badge badge-blue">兑换</span></td><td class="code">BASE-A1B2-C3D4-E5F6-G7H8</td><td>基础成品号</td><td>1.2.3.4</td><td><span class="badge badge-green">成功</span></td></tr>
-              <tr><td class="muted">05-22 14:30:01</td><td><span class="badge badge-blue">兑换</span></td><td class="code">PRO-9X8Y-7Z6W-5V4U-3T2S</td><td>Pro 月卡</td><td>5.6.7.8</td><td><span class="badge badge-green">成功</span></td></tr>
-              <tr><td class="muted">05-22 14:21:33</td><td><span class="badge badge-gray">查询</span></td><td class="code">(批量 12 条)</td><td>—</td><td>9.10.11.12</td><td><span class="badge badge-green">完成</span></td></tr>
-              <tr><td class="muted">05-22 14:18:08</td><td><span class="badge badge-blue">兑换</span></td><td class="code">BASE-XXXX-YYYY-ZZZZ-WWWW</td><td>—</td><td>1.1.1.1</td><td><span class="badge badge-red">卡密无效</span></td></tr>
-              <tr><td class="muted">05-22 13:58:44</td><td><span class="badge badge-blue">兑换</span></td><td class="code">VIP-OLD1-OLD2-OLD3-OLD4</td><td>独享号</td><td>2.2.2.2</td><td><span class="badge badge-yellow">已过期</span></td></tr>
-            </tbody>
+            <tbody></tbody>
           </table>
         </div>
       </section>
@@ -659,11 +539,11 @@
         <div class="page-head"><h1>站点设置</h1><p>站点基础信息与兑换规则配置</p></div>
         <div class="card-block" style="margin-top:0;">
           <div class="grid grid-2">
-            <div class="field"><label class="lbl">站点名称(仅后台/浏览器标题使用)</label><input class="input" value="兑换中心" /></div>
-            <div class="field"><label class="lbl">单次查询上限</label><input class="input" value="50" /></div>
-            <div class="field"><label class="lbl">兑换防刷间隔(秒)</label><input class="input" value="3" /></div>
-            <div class="field"><label class="lbl">兑换失败提示</label><input class="input" value="卡密无效或已使用" /></div>
-            <div class="field"><label class="lbl">前台保留兑换记录(条/客户端)</label><input class="input" value="200" /></div>
+            <div class="field"><label class="lbl">站点名称(仅后台/浏览器标题使用)</label><input class="input" /></div>
+            <div class="field"><label class="lbl">单次查询上限</label><input class="input" /></div>
+            <div class="field"><label class="lbl">兑换防刷间隔(秒)</label><input class="input" /></div>
+            <div class="field"><label class="lbl">兑换失败提示</label><input class="input" /></div>
+            <div class="field"><label class="lbl">前台保留兑换记录(条/客户端)</label><input class="input" /></div>
             <div class="field"><label class="lbl">前台是否显示实时库存</label>
               <select class="select"><option>显示</option><option>隐藏</option></select>
             </div>
@@ -692,12 +572,7 @@
         <div class="card-block" style="margin-top:0;">
           <table class="table">
             <thead><tr><th>时间</th><th>账号</th><th>操作</th><th>对象</th><th>IP</th></tr></thead>
-            <tbody>
-              <tr><td class="muted">05-22 14:00</td><td>admin</td><td>导入库存</td><td>基础成品号 +500 条</td><td>127.0.0.1</td></tr>
-              <tr><td class="muted">05-22 13:50</td><td>admin</td><td>生成卡密</td><td>Pro 月卡 ×200</td><td>127.0.0.1</td></tr>
-              <tr><td class="muted">05-22 11:22</td><td>admin</td><td>禁用卡密</td><td>BASE-TEST-DEMO-0001-AAAA</td><td>127.0.0.1</td></tr>
-              <tr><td class="muted">05-21 22:01</td><td>admin</td><td>修改商品</td><td>#002 Pro 月卡</td><td>127.0.0.1</td></tr>
-            </tbody>
+            <tbody></tbody>
           </table>
         </div>
       </section>
@@ -707,7 +582,7 @@
         <div class="page-head"><h1>使用文档</h1><p>商品配置、库存导入、卡密生成流程</p></div>
         <div class="card-block" style="margin-top:0;line-height:1.8;font-size:14px;">
           <h3 style="margin-top:0;">1. 新增商品</h3>
-          <p class="muted">在「商品管理」点击「＋ 新增商品」,填写名称、商品简介、使用说明、卡密前缀(如 BASE / PRO / VIP)以及满格阈值。简介和使用说明会在用户兑换成功后展示。</p>
+          <p class="muted">在「商品管理」点击「＋ 新增商品」,填写名称、商品简介、使用说明、卡密前缀以及满格阈值。简介和使用说明会在用户兑换成功后展示。</p>
           <h3>2. 导入库存</h3>
           <p class="muted">在「库存管理」选择商品后,粘贴一行一条的库存内容,单行无字符上限,可使用 ---- 等分隔符存储多字段。前台兑换后整段返回给用户。</p>
           <h3>3. 生成卡密</h3>
@@ -729,11 +604,11 @@
     <div class="m-head"><h3>新增 / 编辑商品</h3><button class="close" onclick="closeModal('productModal')">×</button></div>
     <div class="m-body">
       <div class="grid grid-2">
-        <div class="field"><label class="lbl">商品名称</label><input class="input" placeholder="如:基础成品号" /></div>
+        <div class="field"><label class="lbl">商品名称</label><input class="input" placeholder="请输入商品名称" /></div>
         <div class="field">
-          <label class="lbl">卡密前缀(3-5 位字母,如 BASE / PRO / VIP)</label>
-          <input class="input" placeholder="BASE" maxlength="5" style="text-transform:uppercase;" />
-          <div class="help">生成的卡密形如: <span class="code">BASE-XXXX-XXXX-XXXX-XXXX</span></div>
+          <label class="lbl">卡密前缀(3-5 位字母)</label>
+          <input class="input" placeholder="请输入前缀" maxlength="5" style="text-transform:uppercase;" />
+          <div class="help">生成的卡密格式: <span class="code">前缀-XXXX-XXXX-XXXX-XXXX</span></div>
         </div>
         <div class="field" style="grid-column:1/-1;">
           <label class="lbl">满格阈值(库存 ≥ 此值显示 5 格绿色)</label>
@@ -742,8 +617,8 @@
         </div>
       </div>
 
-      <div class="field"><label class="lbl">商品简介(兑换成功后展示给用户)</label><textarea class="textarea" style="min-height:80px;" placeholder="例如:长期稳定的基础账号,适合日常使用..."></textarea></div>
-      <div class="field"><label class="lbl">使用说明(支持多行文本)</label><textarea class="textarea" style="min-height:120px;" placeholder="1. 复制商品内容&#10;2. 按客户端要求登录&#10;3. 立即修改资料避免封号"></textarea></div>
+      <div class="field"><label class="lbl">商品简介(兑换成功后展示给用户)</label><textarea class="textarea" style="min-height:80px;" placeholder="请输入商品简介"></textarea></div>
+      <div class="field"><label class="lbl">使用说明(支持多行文本)</label><textarea class="textarea" style="min-height:120px;" placeholder="请输入使用说明"></textarea></div>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal('productModal')">取消</button>
@@ -758,11 +633,7 @@
     <div class="m-head"><h3>批量生成卡密</h3><button class="close" onclick="closeModal('cdkGenModal')">×</button></div>
     <div class="m-body">
       <div class="field"><label class="lbl">关联商品</label>
-        <select class="select" id="genProduct">
-          <option data-prefix="BASE">基础成品号 (#001) · 前缀 BASE</option>
-          <option data-prefix="PRO">Pro 月卡 (#002) · 前缀 PRO</option>
-          <option data-prefix="VIP">独享号 (#003) · 前缀 VIP</option>
-        </select>
+        <select class="select" id="genProduct"></select>
       </div>
       <div class="grid grid-2">
         <div class="field"><label class="lbl">生成数量</label><input class="input" id="genCount" type="number" value="100" min="1" max="100000" /></div>
@@ -771,12 +642,12 @@
           <input class="input" id="genDays" type="number" value="0" min="0" />
           <div class="help"><b>0</b> = 永久不限制 · <b>1</b> = 1 天 · 以此类推</div>
         </div>
-        <div class="field" style="grid-column:1/-1;"><label class="lbl">备注</label><input class="input" placeholder="如:卡网批次 #2026" /></div>
+        <div class="field" style="grid-column:1/-1;"><label class="lbl">备注</label><input class="input" id="genRemark" placeholder="请输入备注" /></div>
       </div>
 
       <div style="background:var(--info-soft);border:1px solid #bae6fd;color:#075985;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.6;">
         卡密格式固定为 <b>前缀-XXXX-XXXX-XXXX-XXXX</b> (16 位大写字母 + 数字),不可自定义长度与分段。
-        样例预览: <span class="code" id="genPreview">BASE-A1B2-C3D4-E5F6-G7H8</span>
+        预览: <span class="code" id="genPreview"></span>
       </div>
 
       <!-- 生成结果(初始隐藏) -->
@@ -937,8 +808,8 @@
   const genPreview = document.getElementById('genPreview');
   function refreshPreview(){
     const opt = genProduct.options[genProduct.selectedIndex];
-    const prefix = opt?.dataset.prefix || 'BASE';
-    genPreview.textContent = makeCdk(prefix);
+    const prefix = opt?.dataset.prefix || '';
+    genPreview.textContent = prefix ? makeCdk(prefix) : '';
   }
   genProduct.addEventListener('change', refreshPreview);
 
@@ -982,6 +853,7 @@
     const options = products.map(p=>`<option value="${p.id}" data-prefix="${escapeHtml(p.cdk_prefix)}">${escapeHtml(p.name)} (#${String(p.id).padStart(3,'0')}) · 前缀 ${escapeHtml(p.cdk_prefix)}</option>`).join('');
     genProduct.innerHTML = options;
     page('stock').querySelector('select').innerHTML = products.map(p=>`<option value="${p.id}">${escapeHtml(p.name)} (#${String(p.id).padStart(3,'0')})</option>`).join('');
+    page('products').querySelector('.pager > span').textContent = `共 ${products.length.toLocaleString()} 条`;
     refreshPreview();
   }
   function productFields(){
@@ -1153,7 +1025,7 @@
     if(!opt){ showToast('请先新增商品'); return; }
     const count = Math.max(1, Math.min(100000, +document.getElementById('genCount').value || 0));
     const days = Math.max(0, +document.getElementById('genDays').value || 0);
-    const remark = document.querySelector('#cdkGenModal input[placeholder^="如:"]').value;
+    const remark = document.getElementById('genRemark').value;
     const data = await api('/admin/cdks/generate', {
       method:'POST',
       body: JSON.stringify({product_id:+opt.value, count, valid_days:days, remark})

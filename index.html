@@ -285,46 +285,14 @@
 
       <button class="btn btn-primary" id="redeemBtn">兑换卡密</button>
 
-      <!-- 成功后内容(默认作为 UI 示例显示一个) -->
-      <div style="margin-top:22px;" id="redeemResult">
-        <div class="success-block">
-          <div class="success-head">
-            <span class="check">✓</span>
-            兑换成功 · 基础成品号
-          </div>
-
-          <div class="intro">
-            <b>商品简介:</b> 长期稳定的基础账号,适合日常轻度使用,首次登录请立即更换密码并绑定二次验证。
-          </div>
-          <div class="intro">
-            <b>使用说明:</b><br />
-            1. 复制下方账号与密码;<br />
-            2. 打开客户端登录;<br />
-            3. 登录成功后请立即修改资料,避免共享导致封号;<br />
-            4. 兑换内容仅保存在你的浏览器,刷新前请保存。
-          </div>
-
-          <div class="delivery">
-            <div class="delivery-label">商品内容</div>
-            <div class="delivery-row">
-              <div class="delivery-value" id="deliveryDemoText">tbqqhwlz79104@hotmail.com----Aa123456!Qwerty----eyJhbGciOiJIUzI1NiJ9.veryLongTokenExampleHere.signature</div>
-              <button class="btn btn-sm btn-blue-soft" data-copy-target="#deliveryDemoText">复制</button>
-            </div>
-          </div>
-
-          <div class="meta-row">
-            <span>已自动保存到本机兑换记录</span>
-            <span>兑换时间: 2026-05-22 14:36</span>
-          </div>
-        </div>
-      </div>
+      <div style="margin-top:22px;display:none;" id="redeemResult"></div>
     </div>
 
     <!-- 查询 -->
     <div class="panel" id="panel-query">
       <div class="field">
         <label class="label">卡密查询(每行一个,单次最多 50 条)</label>
-        <textarea class="textarea" id="cdkBatch" placeholder="例如:&#10;BASE-A1B2-C3D4-E5F6-G7H8&#10;BASE-9X8Y-7Z6W-5V4U-3T2S"></textarea>
+        <textarea class="textarea" id="cdkBatch" placeholder="每行输入一个卡密"></textarea>
         <div class="hint">
           <span>* 查询仅检测卡密状态,不会消耗任何卡密</span>
           <span id="batchCount">0 / 50</span>
@@ -333,20 +301,7 @@
 
       <button class="btn btn-primary" id="queryBtn">批量查询</button>
 
-      <div class="result-list" id="queryResults">
-        <div class="result-item">
-          <span class="code">BASE-A1B2-C3D4-E5F6-G7H8</span>
-          <span class="badge badge-unused">未使用 · 可用</span>
-        </div>
-        <div class="result-item">
-          <span class="code">BASE-9X8Y-7Z6W-5V4U-3T2S</span>
-          <span class="badge badge-used">已使用</span>
-        </div>
-        <div class="result-item">
-          <span class="code">BASE-XXXX-YYYY-ZZZZ-WWWW</span>
-          <span class="badge badge-invalid">无效</span>
-        </div>
-      </div>
+      <div class="result-list" id="queryResults" style="display:none;"></div>
     </div>
   </div>
 
@@ -379,27 +334,6 @@
   <div class="stock-card">
     <h4>实时库存</h4>
     <div class="sub">每格代表库存档位,绿色充足、红色紧缺</div>
-
-    <div class="stock-row">
-      <span class="name">基础成品号</span>
-      <div class="grid" data-full="100" data-stock="1284"></div>
-    </div>
-    <div class="stock-row">
-      <span class="name">高级成品号</span>
-      <div class="grid" data-full="100" data-stock="326"></div>
-    </div>
-    <div class="stock-row">
-      <span class="name">Pro 订阅 · 月卡</span>
-      <div class="grid" data-full="100" data-stock="42"></div>
-    </div>
-    <div class="stock-row">
-      <span class="name">Pro 订阅 · 季卡</span>
-      <div class="grid" data-full="50" data-stock="6"></div>
-    </div>
-    <div class="stock-row">
-      <span class="name">独享号 · 限定</span>
-      <div class="grid" data-full="20" data-stock="0"></div>
-    </div>
 
     <div class="stock-legend">
       <span><i style="background:#10b981;"></i>充足</span>
