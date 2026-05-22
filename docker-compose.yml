@@ -48,7 +48,12 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8877
+      WEB_WORKERS: 4
+      WEB_THREADS: 8
+      WEB_TIMEOUT: 60
       STARTUP_WAIT_SECONDS: 120
+      MYSQL_POOL_SIZE: 12
+      MYSQL_POOL_WAIT_SECONDS: 5
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: duihuan

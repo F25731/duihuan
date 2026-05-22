@@ -2,14 +2,19 @@
 import base64
 import hashlib
 import hmac
+import io
 import json
 import mimetypes
 import os
+import queue
 import re
 import secrets
+import threading
 import time
+import traceback
 from datetime import date, datetime, timedelta
 from http import cookies
+from http import HTTPStatus
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -23,12 +28,19 @@ MYSQL_PORT = int(os.environ.get("MYSQL_PORT", "3306"))
 MYSQL_USER = os.environ.get("MYSQL_USER", "duihuan")
 MYSQL_PASSWORD = os.environ.get("MYSQL_PASSWORD", "")
 MYSQL_DATABASE = os.environ.get("MYSQL_DATABASE", "duihuan")
+MYSQL_POOL_SIZE = int(os.environ.get("MYSQL_POOL_SIZE", "12"))
+MYSQL_POOL_WAIT_SECONDS = int(os.environ.get("MYSQL_POOL_WAIT_SECONDS", "5"))
 CDK_CHARS = "ABCDEFGHJKMNPQRSTVWXYZ23456789"
 CDK_RE = re.compile(r"^[A-Z]{3,5}(-[A-Z2-9]{4}){4}$")
 THROTTLE = {}
 REDIS_URL = os.environ.get("REDIS_URL", "").strip()
 REDIS_PREFIX = os.environ.get("REDIS_PREFIX", "duihuan")
 REDIS_CLIENT = None
+MYSQL_POOL = queue.LifoQueue(maxsize=MYSQL_POOL_SIZE)
+MYSQL_POOL_CREATED = 0
+MYSQL_POOL_LOCK = threading.Lock()
+STARTUP_DONE = False
+STARTUP_LOCK = threading.Lock()
 
 
 def now_str():
@@ -58,8 +70,9 @@ class CursorAdapter:
 
 
 class MySQLAdapter:
-    def __init__(self, conn):
+    def __init__(self, conn, pooled=False):
         self.conn = conn
+        self.pooled = pooled
 
     def __enter__(self):
         return self
@@ -101,16 +114,22 @@ class MySQLAdapter:
                 raise
 
     def close(self):
-        self.conn.close()
+        if not self.pooled:
+            self.conn.close()
+            return
+        try:
+            MYSQL_POOL.put_nowait(self.conn)
+        except queue.Full:
+            self.conn.close()
 
 
-def db():
+def create_mysql_connection():
     try:
         import pymysql
         import pymysql.cursors
     except ImportError as exc:
         raise RuntimeError("缺少 MySQL 驱动,请先执行: python3 -m pip install -r requirements.txt") from exc
-    conn = pymysql.connect(
+    return pymysql.connect(
         host=MYSQL_HOST,
         port=MYSQL_PORT,
         user=MYSQL_USER,
@@ -120,7 +139,28 @@ def db():
         autocommit=True,
         cursorclass=pymysql.cursors.DictCursor,
     )
-    return MySQLAdapter(conn)
+
+
+def db():
+    global MYSQL_POOL_CREATED
+    try:
+        conn = MYSQL_POOL.get_nowait()
+    except queue.Empty:
+        with MYSQL_POOL_LOCK:
+            if MYSQL_POOL_CREATED < MYSQL_POOL_SIZE:
+                conn = create_mysql_connection()
+                MYSQL_POOL_CREATED += 1
+            else:
+                conn = MYSQL_POOL.get(timeout=MYSQL_POOL_WAIT_SECONDS)
+    try:
+        conn.ping(reconnect=True)
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        conn = create_mysql_connection()
+    return MySQLAdapter(conn, pooled=True)
 
 
 def wait_for_dependencies():
@@ -364,7 +404,12 @@ def init_db():
         for key, value in defaults.items():
             if not conn.execute("SELECT 1 FROM setting WHERE skey=?", (key,)).fetchone():
                 conn.execute("INSERT INTO setting(skey,value) VALUES(?,?)", (key, value))
-        rebuild_all_inventory_queues(conn)
+        r = redis_client()
+        if r and r.set(redis_key("lock", "queue_rebuild"), "1", nx=True, ex=60):
+            try:
+                rebuild_all_inventory_queues(conn)
+            finally:
+                r.delete(redis_key("lock", "queue_rebuild"))
 
 
 class App(BaseHTTPRequestHandler):
@@ -477,7 +522,8 @@ class App(BaseHTTPRequestHandler):
                     return
                 return self.admin_routes(conn, admin, method, path)
         except Exception as exc:
-            self.fail(5000, f"服务器错误: {exc}", 500)
+            traceback.print_exc()
+            self.fail(5000, "服务器繁忙,请稍后再试", 500)
 
     def public_stocks(self, conn):
         rows = conn.execute(
@@ -854,9 +900,95 @@ class LocalHTTPServer(ThreadingHTTPServer):
         self.server_port = self.server_address[1]
 
 
+class WSGIHeaders:
+    def __init__(self, environ):
+        self.values = {}
+        for key, value in environ.items():
+            if key.startswith("HTTP_"):
+                name = key[5:].replace("_", "-").title()
+                self.values[name] = value
+        if environ.get("CONTENT_TYPE"):
+            self.values["Content-Type"] = environ["CONTENT_TYPE"]
+        if environ.get("CONTENT_LENGTH"):
+            self.values["Content-Length"] = environ["CONTENT_LENGTH"]
+
+    def get(self, key, default=None):
+        return self.values.get(key, default)
+
+
+class WSGIRequest(App):
+    def __init__(self, environ):
+        self.environ = environ
+        self.command = environ.get("REQUEST_METHOD", "GET").upper()
+        path = environ.get("PATH_INFO") or "/"
+        query = environ.get("QUERY_STRING") or ""
+        self.path = path + (("?" + query) if query else "")
+        self.headers = WSGIHeaders(environ)
+        size = int(environ.get("CONTENT_LENGTH") or 0)
+        self.rfile = io.BytesIO(environ["wsgi.input"].read(size) if size else b"")
+        self.wfile = io.BytesIO()
+        self.client_address = (environ.get("REMOTE_ADDR") or "127.0.0.1", 0)
+        self.response_status = 200
+        self.response_headers = []
+
+    def send_response(self, code, message=None):
+        self.response_status = code
+
+    def send_header(self, key, value):
+        self.response_headers.append((key, str(value)))
+
+    def end_headers(self):
+        return
+
+    def send_error(self, code, message=None):
+        text = (message or HTTPStatus(code).phrase).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(text)))
+        self.end_headers()
+        self.wfile.write(text)
+
+    def finish(self, start_response):
+        phrase = HTTPStatus(self.response_status).phrase
+        start_response(f"{self.response_status} {phrase}", self.response_headers)
+        return [self.wfile.getvalue()]
+
+
+def ensure_started():
+    global STARTUP_DONE
+    if STARTUP_DONE:
+        return
+    with STARTUP_LOCK:
+        if STARTUP_DONE:
+            return
+        wait_for_dependencies()
+        init_db()
+        STARTUP_DONE = True
+
+
+def application(environ, start_response):
+    try:
+        ensure_started()
+        req = WSGIRequest(environ)
+        path = urlparse(req.path).path
+        if path.startswith("/api/") or path.startswith("/admin/"):
+            req.route_api(req.command, path)
+        else:
+            req.serve_static(path)
+        return req.finish(start_response)
+    except Exception:
+        traceback.print_exc()
+        payload = {"code": 5000, "msg": "服务器繁忙,请稍后再试", "data": {}}
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        start_response("503 Service Unavailable", [
+            ("Content-Type", "application/json; charset=utf-8"),
+            ("Content-Length", str(len(body))),
+        ])
+        return [body]
+
+
 if __name__ == "__main__":
-    wait_for_dependencies()
-    init_db()
+    ensure_started()
     print(f"CDK 兑换系统已启动: http://{HOST}:{PORT}")
     print("默认后台账号: Fyanxv / Fyb2530+")
     LocalHTTPServer((HOST, PORT), App).serve_forever()

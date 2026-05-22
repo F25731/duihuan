@@ -74,6 +74,14 @@ docker compose ps
 docker compose logs -f duihuan
 ```
 
+默认容器内使用 Gunicorn 多 worker:
+
+- `WEB_WORKERS=4`
+- `WEB_THREADS=8`
+- `MYSQL_POOL_SIZE=12`
+
+总 MySQL 连接上限约等于 `WEB_WORKERS * MYSQL_POOL_SIZE`。如果继续提高 worker 或连接池,也要同步确认 MySQL `max-connections` 足够。
+
 ## 秒抢说明
 
 兑换时后端会先给卡密加 Redis 短锁，再从 Redis 商品库存队列 `LPOP` 一个库存 ID，最后进入 MySQL 事务二次确认卡密和库存状态后落库。
