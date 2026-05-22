@@ -539,10 +539,10 @@
         <div class="page-head"><h1>卡密管理</h1><p>生成、查询、禁用兑换卡密。卡密格式固定:<span class="code">前缀-XXXX-XXXX-XXXX-XXXX</span>(16 位字母数字)</p></div>
 
         <div class="grid grid-4">
-          <div class="card"><div class="label">卡密总数</div><div class="num">1,479,770</div></div>
-          <div class="card"><div class="label">未使用</div><div class="num" style="color:var(--primary);">12,302</div></div>
-          <div class="card"><div class="label">已使用</div><div class="num" style="color:var(--success);">1,467,468</div></div>
-          <div class="card"><div class="label">已禁用 / 过期</div><div class="num" style="color:var(--danger);">3,128</div></div>
+          <div class="card"><div class="label">卡密总数</div><div class="num">0</div></div>
+          <div class="card"><div class="label">未使用</div><div class="num" style="color:var(--primary);">0</div></div>
+          <div class="card"><div class="label">已使用</div><div class="num" style="color:var(--success);">0</div></div>
+          <div class="card"><div class="label">已禁用 / 过期</div><div class="num" style="color:var(--danger);">0</div></div>
         </div>
 
         <div class="card-block">
@@ -618,9 +618,9 @@
           </table>
 
           <div class="pager">
-            <span>共 1,479,770 条</span>
+            <span>共 0 条</span>
             <div class="pages">
-              <span>‹</span><span class="active">1</span><span>2</span><span>3</span><span>…</span><span>98651</span><span>›</span>
+              <span class="active">1</span>
             </div>
           </div>
         </div>
@@ -948,6 +948,15 @@
     [s.products, s.inventory, s.cdks, s.unused_cdks, s.today_redeem, s.query_24h].forEach((v,i)=>{
       if(nums[i]) nums[i].textContent = Number(v || 0).toLocaleString();
     });
+    const cdkNums = page('cdk').querySelectorAll('.grid-4 .num');
+    [s.cdks, s.unused_cdks, s.used_cdks, s.disabled_cdks].forEach((v,i)=>{
+      if(cdkNums[i]) cdkNums[i].textContent = Number(v || 0).toLocaleString();
+    });
+    const total = Number(s.cdks || 0);
+    page('cdk').querySelector('.pager > span').textContent = `共 ${total.toLocaleString()} 条`;
+    page('cdk').querySelector('.pager .pages').innerHTML = total
+      ? '<span>‹</span><span class="active">1</span><span>›</span>'
+      : '<span class="active">1</span>';
   }
   async function loadProducts(){
     products = await api('/admin/products');

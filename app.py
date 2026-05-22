@@ -478,6 +478,8 @@ class App(BaseHTTPRequestHandler):
                 "inventory": conn.execute("SELECT COUNT(*) c FROM inventory WHERE status=0").fetchone()["c"],
                 "cdks": conn.execute("SELECT COUNT(*) c FROM cdk").fetchone()["c"],
                 "unused_cdks": conn.execute("SELECT COUNT(*) c FROM cdk WHERE status=0").fetchone()["c"],
+                "used_cdks": conn.execute("SELECT COUNT(*) c FROM cdk WHERE status=1").fetchone()["c"],
+                "disabled_cdks": conn.execute("SELECT COUNT(*) c FROM cdk WHERE status IN (2,3)").fetchone()["c"],
                 "today_redeem": conn.execute("SELECT COUNT(*) c FROM redeem_log WHERE type=1 AND result=1 AND created_at>=date('now','localtime')").fetchone()["c"],
                 "query_24h": conn.execute("SELECT COUNT(*) c FROM redeem_log WHERE type=2 AND created_at>=datetime('now','localtime','-1 day')").fetchone()["c"],
             })
