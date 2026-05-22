@@ -1,68 +1,70 @@
 # CDK 兑换系统
 
-纯 HTML 前端 + Python 后端。默认使用 SQLite，开启 Redis 后会进入抢兑队列模式。
+纯 HTML 前端 + Python 后端。生产架构固定为 MySQL + Redis:
 
-## 本地启动
+- MySQL: 商品、库存、卡密、兑换记录、后台账号等持久化数据。
+- Redis: 秒抢库存队列、同一卡密并发锁。
 
-```bash
-python app.py
-```
+## 后台账号
 
-默认访问:
+- 登录地址: `/login.html`
+- 默认用户名: `Fyanxv`
+- 默认密码: `Fyb2530+`
 
-- 前台: http://127.0.0.1:8765/
-- 后台登录: http://127.0.0.1:8765/login.html
+默认账号只在数据库第一次初始化、后台还没有管理员时写入。后续可在后台修改密码。
 
-默认后台账号:
-
-- 用户名: `Fyanxv`
-- 密码: `Fyb2530+`
-
-首次运行会自动创建 `data/cdk_exchange.db`。
-
-## 修改端口
-
-```bash
-PORT=8080 python app.py
-```
-
-Windows PowerShell:
-
-```powershell
-$env:PORT=8080; python app.py
-```
-
-## 修改首次默认密码
-
-仅在数据库还没初始化时生效:
-
-```powershell
-$env:ADMIN_USERNAME="your-name"; $env:ADMIN_PASSWORD="your-password"; python app.py
-```
-
-后台登录后也可以在「站点设置」里修改管理员密码。
-
-## 抢兑模式
-
-如果预计几千人在几秒内同时兑换，建议开启 Redis。开启后兑换流程会变成:
-
-1. 同一卡密先拿 Redis 短锁，避免重复提交。
-2. 商品库存从 Redis 队列原子弹出，先到先得。
-3. 数据库事务落库，标记卡密已使用、库存已发货。
-4. 如果落库失败，库存 ID 会放回队列。
+## 服务器直跑部署
 
 安装依赖:
 
 ```bash
+cd /opt/duihuan
 python3 -m pip install -r requirements.txt
 ```
 
-启动 Redis 后运行:
+创建 MySQL 数据库和账号:
 
-```bash
-REDIS_URL=redis://127.0.0.1:6379/0 HOST=0.0.0.0 PORT=8877 python3 app.py
+```sql
+CREATE DATABASE duihuan CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'duihuan'@'127.0.0.1' IDENTIFIED BY 'change_duihuan_password';
+GRANT ALL PRIVILEGES ON duihuan.* TO 'duihuan'@'127.0.0.1';
+FLUSH PRIVILEGES;
 ```
 
-后台导入库存时会自动重建对应商品的 Redis 库存队列。如果你手工改过数据库，可以登录后台后调用 `/admin/cache/rebuild` 重建全部库存队列。
+启动:
 
-这个版本仍保留 SQLite 开发模式。真正持续高并发生产环境建议配合 Redis、反向代理、进程守护，并在业务量继续增长后把 SQLite 升级到 MySQL/PostgreSQL。
+```bash
+cd /opt/duihuan
+pkill -9 -f "python3 app.py"
+MYSQL_HOST=127.0.0.1 \
+MYSQL_PORT=3306 \
+MYSQL_USER=duihuan \
+MYSQL_PASSWORD='change_duihuan_password' \
+MYSQL_DATABASE=duihuan \
+REDIS_URL=redis://127.0.0.1:6379/0 \
+HOST=0.0.0.0 \
+PORT=8877 \
+nohup python3 app.py > app.log 2>&1 &
+```
+
+查看日志:
+
+```bash
+tail -n 80 /opt/duihuan/app.log
+```
+
+## Docker Compose
+
+高并发部署文件:
+
+```bash
+docker compose -f docker-compose.high-concurrency.yml up -d --build
+```
+
+上线前必须修改 `docker-compose.high-concurrency.yml` 里的 MySQL 密码。
+
+## 秒抢说明
+
+兑换时后端会先给卡密加 Redis 短锁，再从 Redis 商品库存队列 `LPOP` 一个库存 ID，最后进入 MySQL 事务二次确认卡密和库存状态后落库。
+
+后台导入、删除库存会同步刷新 Redis 队列。如果你手工改过 MySQL，可以登录后台后调用 `/admin/cache/rebuild` 重建全部商品库存队列。

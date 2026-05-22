@@ -7,9 +7,6 @@ import mimetypes
 import os
 import re
 import secrets
-import sqlite3
-import subprocess
-import sys
 import time
 from datetime import datetime, timedelta
 from http import cookies
@@ -19,10 +16,13 @@ from urllib.parse import parse_qs, urlparse
 
 
 ROOT = Path(__file__).resolve().parent
-DATA_DIR = ROOT / "data"
-DB_PATH = DATA_DIR / "cdk_exchange.db"
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8765"))
+MYSQL_HOST = os.environ.get("MYSQL_HOST", "127.0.0.1")
+MYSQL_PORT = int(os.environ.get("MYSQL_PORT", "3306"))
+MYSQL_USER = os.environ.get("MYSQL_USER", "duihuan")
+MYSQL_PASSWORD = os.environ.get("MYSQL_PASSWORD", "")
+MYSQL_DATABASE = os.environ.get("MYSQL_DATABASE", "duihuan")
 CDK_CHARS = "ABCDEFGHJKMNPQRSTVWXYZ23456789"
 CDK_RE = re.compile(r"^[A-Z]{3,5}(-[A-Z2-9]{4}){4}$")
 THROTTLE = {}
@@ -35,12 +35,167 @@ def now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+class CursorAdapter:
+    def __init__(self, cursor):
+        self.cursor = cursor
+
+    def fetchone(self):
+        return self.cursor.fetchone()
+
+    def fetchall(self):
+        return self.cursor.fetchall()
+
+
+class MySQLAdapter:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.conn.close()
+
+    def sql(self, statement):
+        statement = statement.strip()
+        if statement.upper() == "BEGIN IMMEDIATE":
+            return "BEGIN"
+        return statement.replace("?", "%s")
+
+    def execute(self, statement, params=()):
+        upper = statement.strip().upper()
+        if upper == "COMMIT":
+            self.conn.commit()
+            return CursorAdapter(None)
+        if upper == "ROLLBACK":
+            self.conn.rollback()
+            return CursorAdapter(None)
+        cur = self.conn.cursor()
+        cur.execute(self.sql(statement), params)
+        return CursorAdapter(cur)
+
+    def executemany(self, statement, seq):
+        cur = self.conn.cursor()
+        cur.executemany(self.sql(statement), seq)
+        return CursorAdapter(cur)
+
+    def executescript(self, script):
+        statements = script if isinstance(script, list) else [s.strip() for s in script.split(";") if s.strip()]
+        for statement in statements:
+            try:
+                self.execute(statement)
+            except Exception:
+                if str(statement).strip().upper().startswith("CREATE INDEX"):
+                    continue
+                raise
+
+    def close(self):
+        self.conn.close()
+
+
 def db():
-    DATA_DIR.mkdir(exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=30, isolation_level=None)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    try:
+        import pymysql
+        import pymysql.cursors
+    except ImportError as exc:
+        raise RuntimeError("缺少 MySQL 驱动,请先执行: python3 -m pip install -r requirements.txt") from exc
+    conn = pymysql.connect(
+        host=MYSQL_HOST,
+        port=MYSQL_PORT,
+        user=MYSQL_USER,
+        password=MYSQL_PASSWORD,
+        database=MYSQL_DATABASE,
+        charset="utf8mb4",
+        autocommit=True,
+        cursorclass=pymysql.cursors.DictCursor,
+    )
+    return MySQLAdapter(conn)
+
+
+def schema_statements():
+    pk = "BIGINT PRIMARY KEY AUTO_INCREMENT"
+    idx_prefix = "CREATE INDEX"
+    return [
+        f"""CREATE TABLE IF NOT EXISTS admin (
+            id {pk},
+            username VARCHAR(64) NOT NULL UNIQUE,
+            password_hash VARCHAR(255) NOT NULL,
+            last_login_at TIMESTAMP NULL,
+            last_login_ip VARCHAR(45),
+            created_at TIMESTAMP NOT NULL
+        )""",
+        f"""CREATE TABLE IF NOT EXISTS admin_session (
+            token VARCHAR(128) PRIMARY KEY,
+            admin_id BIGINT NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            created_at TIMESTAMP NOT NULL
+        )""",
+        f"""CREATE TABLE IF NOT EXISTS product (
+            id {pk},
+            name VARCHAR(128) NOT NULL,
+            intro TEXT NOT NULL,
+            usage_text TEXT NOT NULL,
+            cdk_prefix VARCHAR(8) NOT NULL,
+            full_threshold INT NOT NULL DEFAULT 100,
+            status INT NOT NULL DEFAULT 1,
+            sort INT NOT NULL DEFAULT 0,
+            created_at TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP NOT NULL
+        )""",
+        f"""CREATE TABLE IF NOT EXISTS inventory (
+            id {pk},
+            product_id BIGINT NOT NULL,
+            content LONGTEXT NOT NULL,
+            status INT NOT NULL DEFAULT 0,
+            delivered_cdk_id BIGINT NULL,
+            expire_at TIMESTAMP NULL,
+            batch_no VARCHAR(64),
+            created_at TIMESTAMP NOT NULL,
+            delivered_at TIMESTAMP NULL
+        )""",
+        f"{idx_prefix} idx_inventory_product_status ON inventory(product_id,status)",
+        f"{idx_prefix} idx_inventory_batch ON inventory(batch_no)",
+        f"""CREATE TABLE IF NOT EXISTS cdk (
+            id {pk},
+            code VARCHAR(32) NOT NULL UNIQUE,
+            product_id BIGINT NOT NULL,
+            status INT NOT NULL DEFAULT 0,
+            valid_days INT NOT NULL DEFAULT 0,
+            generated_at TIMESTAMP NOT NULL,
+            expire_at TIMESTAMP NULL,
+            used_at TIMESTAMP NULL,
+            used_ip VARCHAR(45),
+            inventory_id BIGINT NULL,
+            remark VARCHAR(255),
+            batch_no VARCHAR(64)
+        )""",
+        f"{idx_prefix} idx_cdk_product_status ON cdk(product_id,status)",
+        f"{idx_prefix} idx_cdk_status_expire ON cdk(status,expire_at)",
+        f"""CREATE TABLE IF NOT EXISTS redeem_log (
+            id {pk},
+            type INT NOT NULL,
+            cdk_code VARCHAR(32),
+            product_id BIGINT NULL,
+            ip VARCHAR(45),
+            ua VARCHAR(255),
+            result INT NOT NULL,
+            created_at TIMESTAMP NOT NULL
+        )""",
+        f"{idx_prefix} idx_redeem_cdk ON redeem_log(cdk_code)",
+        f"{idx_prefix} idx_redeem_created ON redeem_log(created_at)",
+        f"""CREATE TABLE IF NOT EXISTS admin_log (
+            id {pk},
+            admin_id BIGINT NULL,
+            action VARCHAR(64) NOT NULL,
+            target VARCHAR(255),
+            ip VARCHAR(45),
+            created_at TIMESTAMP NOT NULL
+        )""",
+        f"""CREATE TABLE IF NOT EXISTS setting (
+            skey VARCHAR(64) PRIMARY KEY,
+            value TEXT
+        )""",
+    ]
 
 
 def hash_password(password, salt=None):
@@ -86,6 +241,11 @@ def rows_dict(rows):
     return [dict(r) for r in rows]
 
 
+def is_integrity_error(exc):
+    name = exc.__class__.__name__.lower()
+    return "integrity" in name or "unique" in str(exc).lower() or "duplicate" in str(exc).lower()
+
+
 def redis_client():
     global REDIS_CLIENT
     if not REDIS_URL:
@@ -123,14 +283,24 @@ def rebuild_inventory_queue(conn, product_id):
     return len(ids)
 
 
+def rebuild_all_inventory_queues(conn):
+    r = redis_client()
+    if not r:
+        return 0
+    total = 0
+    for row in conn.execute("SELECT id FROM product").fetchall():
+        total += rebuild_inventory_queue(conn, row["id"])
+    return total
+
+
 def get_setting(conn, key, default=""):
-    row = conn.execute("SELECT value FROM setting WHERE key=?", (key,)).fetchone()
+    row = conn.execute("SELECT value FROM setting WHERE skey=?", (key,)).fetchone()
     return row["value"] if row else default
 
 
 def set_setting(conn, key, value):
     conn.execute(
-        "INSERT INTO setting(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        "INSERT INTO setting(skey,value) VALUES(?,?) ON DUPLICATE KEY UPDATE value=VALUES(value)",
         (key, str(value)),
     )
 
@@ -143,94 +313,8 @@ def admin_log(conn, admin_id, action, target, ip):
 
 
 def init_db():
-    DATA_DIR.mkdir(exist_ok=True)
     with db() as conn:
-        conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS admin (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              username TEXT NOT NULL UNIQUE,
-              password_hash TEXT NOT NULL,
-              last_login_at TEXT,
-              last_login_ip TEXT,
-              created_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS admin_session (
-              token TEXT PRIMARY KEY,
-              admin_id INTEGER NOT NULL,
-              expires_at TEXT NOT NULL,
-              created_at TEXT NOT NULL,
-              FOREIGN KEY(admin_id) REFERENCES admin(id)
-            );
-            CREATE TABLE IF NOT EXISTS product (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              name TEXT NOT NULL,
-              intro TEXT NOT NULL DEFAULT '',
-              usage_text TEXT NOT NULL DEFAULT '',
-              cdk_prefix TEXT NOT NULL,
-              full_threshold INTEGER NOT NULL DEFAULT 100,
-              status INTEGER NOT NULL DEFAULT 1,
-              sort INTEGER NOT NULL DEFAULT 0,
-              created_at TEXT NOT NULL,
-              updated_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS inventory (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              product_id INTEGER NOT NULL,
-              content TEXT NOT NULL,
-              status INTEGER NOT NULL DEFAULT 0,
-              delivered_cdk_id INTEGER,
-              expire_at TEXT,
-              batch_no TEXT,
-              created_at TEXT NOT NULL,
-              delivered_at TEXT,
-              FOREIGN KEY(product_id) REFERENCES product(id)
-            );
-            CREATE INDEX IF NOT EXISTS idx_inventory_product_status ON inventory(product_id,status);
-            CREATE INDEX IF NOT EXISTS idx_inventory_batch ON inventory(batch_no);
-            CREATE TABLE IF NOT EXISTS cdk (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              code TEXT NOT NULL UNIQUE,
-              product_id INTEGER NOT NULL,
-              status INTEGER NOT NULL DEFAULT 0,
-              valid_days INTEGER NOT NULL DEFAULT 0,
-              generated_at TEXT NOT NULL,
-              expire_at TEXT,
-              used_at TEXT,
-              used_ip TEXT,
-              inventory_id INTEGER,
-              remark TEXT,
-              batch_no TEXT,
-              FOREIGN KEY(product_id) REFERENCES product(id)
-            );
-            CREATE INDEX IF NOT EXISTS idx_cdk_product_status ON cdk(product_id,status);
-            CREATE INDEX IF NOT EXISTS idx_cdk_status_expire ON cdk(status,expire_at);
-            CREATE TABLE IF NOT EXISTS redeem_log (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              type INTEGER NOT NULL,
-              cdk_code TEXT,
-              product_id INTEGER,
-              ip TEXT,
-              ua TEXT,
-              result INTEGER NOT NULL,
-              created_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_redeem_cdk ON redeem_log(cdk_code);
-            CREATE INDEX IF NOT EXISTS idx_redeem_created ON redeem_log(created_at);
-            CREATE TABLE IF NOT EXISTS admin_log (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              admin_id INTEGER,
-              action TEXT NOT NULL,
-              target TEXT,
-              ip TEXT,
-              created_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS setting (
-              key TEXT PRIMARY KEY,
-              value TEXT
-            );
-            """
-        )
+        conn.executescript(schema_statements())
         if not conn.execute("SELECT 1 FROM admin LIMIT 1").fetchone():
             username = os.environ.get("ADMIN_USERNAME", "Fyanxv")
             password = os.environ.get("ADMIN_PASSWORD", "Fyb2530+")
@@ -248,7 +332,9 @@ def init_db():
             "announcement": "",
         }
         for key, value in defaults.items():
-            conn.execute("INSERT OR IGNORE INTO setting(key,value) VALUES(?,?)", (key, value))
+            if not conn.execute("SELECT 1 FROM setting WHERE skey=?", (key,)).fetchone():
+                conn.execute("INSERT INTO setting(skey,value) VALUES(?,?)", (key, value))
+        rebuild_all_inventory_queues(conn)
 
 
 class App(BaseHTTPRequestHandler):
@@ -342,7 +428,7 @@ class App(BaseHTTPRequestHandler):
         try:
             with db() as conn:
                 if path == "/api/site" and method == "GET":
-                    return self.ok({r["key"]: r["value"] for r in conn.execute("SELECT key,value FROM setting")})
+                    return self.ok({r["skey"]: r["value"] for r in conn.execute("SELECT skey,value FROM setting")})
                 if path == "/api/stocks" and method == "GET":
                     return self.ok(self.public_stocks(conn))
                 if path == "/api/query" and method == "POST":
@@ -366,10 +452,9 @@ class App(BaseHTTPRequestHandler):
     def public_stocks(self, conn):
         rows = conn.execute(
             """SELECT p.id product_id,p.name,p.full_threshold,
-                      SUM(CASE WHEN i.status=0 THEN 1 ELSE 0 END) stock
-               FROM product p LEFT JOIN inventory i ON i.product_id=p.id
+                      (SELECT COUNT(*) FROM inventory i WHERE i.product_id=p.id AND i.status=0) stock
+               FROM product p
                WHERE p.status=1
-               GROUP BY p.id
                ORDER BY p.sort,p.id"""
         ).fetchall()
         data = []
@@ -428,68 +513,12 @@ class App(BaseHTTPRequestHandler):
         r = redis_client()
         if r:
             return self.public_redeem_redis(conn, r, code, fail_text, ip)
-        try:
-            conn.execute("BEGIN IMMEDIATE")
-            cdk = conn.execute("SELECT * FROM cdk WHERE code=?", (code,)).fetchone()
-            if not cdk:
-                conn.execute("ROLLBACK")
-                self.write_redeem_log(conn, code, None, 2)
-                return self.fail(1001, fail_text)
-            if cdk["expire_at"] and cdk["expire_at"] < now_str():
-                conn.execute("UPDATE cdk SET status=3 WHERE id=?", (cdk["id"],))
-                conn.execute("COMMIT")
-                self.write_redeem_log(conn, code, cdk["product_id"], 4)
-                return self.fail(1004, "卡密已过期")
-            if cdk["status"] == 1:
-                conn.execute("ROLLBACK")
-                self.write_redeem_log(conn, code, cdk["product_id"], 3)
-                return self.fail(1002, "卡密已使用")
-            if cdk["status"] != 0:
-                conn.execute("ROLLBACK")
-                self.write_redeem_log(conn, code, cdk["product_id"], 4)
-                return self.fail(1003, fail_text)
-            product = conn.execute("SELECT * FROM product WHERE id=? AND status=1", (cdk["product_id"],)).fetchone()
-            if not product:
-                conn.execute("ROLLBACK")
-                self.write_redeem_log(conn, code, cdk["product_id"], 5)
-                return self.fail(1005, "商品已下架")
-            inv = conn.execute(
-                "SELECT * FROM inventory WHERE product_id=? AND status=0 ORDER BY id LIMIT 1",
-                (product["id"],),
-            ).fetchone()
-            if not inv:
-                conn.execute("ROLLBACK")
-                self.write_redeem_log(conn, code, product["id"], 5)
-                return self.fail(1006, "库存不足")
-            t = now_str()
-            conn.execute(
-                "UPDATE cdk SET status=1,used_at=?,used_ip=?,inventory_id=? WHERE id=?",
-                (t, ip, inv["id"], cdk["id"]),
-            )
-            conn.execute(
-                "UPDATE inventory SET status=1,delivered_cdk_id=?,delivered_at=? WHERE id=?",
-                (cdk["id"], t, inv["id"]),
-            )
-            conn.execute(
-                "INSERT INTO redeem_log(type,cdk_code,product_id,ip,ua,result,created_at) VALUES(?,?,?,?,?,?,?)",
-                (1, code, product["id"], ip, self.headers.get("User-Agent", "")[:255], 1, t),
-            )
-            conn.execute("COMMIT")
-            self.ok({
-                "product": {"id": product["id"], "name": product["name"], "intro": product["intro"], "usage_text": product["usage_text"]},
-                "content": inv["content"],
-                "time": t,
-            })
-        except Exception:
-            try:
-                conn.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise
+        return self.fail(5001, "Redis 未启用,秒抢兑换已暂停")
 
     def public_redeem_redis(self, conn, r, code, fail_text, ip):
         lock_key = redis_key("lock", "cdk", code)
-        if not r.set(lock_key, "1", nx=True, ex=15):
+        lock_token = secrets.token_urlsafe(16)
+        if not r.set(lock_key, lock_token, nx=True, ex=30):
             return self.fail(1007, "卡密正在处理中,请勿重复提交")
         inv = None
         product = None
@@ -517,9 +546,6 @@ class App(BaseHTTPRequestHandler):
             queue_key = redis_key("inventory", product["id"])
             for attempt in range(8):
                 inventory_id = r.lpop(queue_key)
-                if inventory_id is None and attempt == 0:
-                    rebuild_inventory_queue(conn, product["id"])
-                    inventory_id = r.lpop(queue_key)
                 if inventory_id is None:
                     break
                 inv = conn.execute(
@@ -533,10 +559,12 @@ class App(BaseHTTPRequestHandler):
                 return self.fail(1006, "库存不足")
             try:
                 conn.execute("BEGIN IMMEDIATE")
-                fresh = conn.execute("SELECT status FROM cdk WHERE id=?", (cdk["id"],)).fetchone()
-                fresh_inv = conn.execute("SELECT status FROM inventory WHERE id=?", (inv["id"],)).fetchone()
+                fresh = conn.execute("SELECT status FROM cdk WHERE id=? FOR UPDATE", (cdk["id"],)).fetchone()
+                fresh_inv = conn.execute("SELECT status FROM inventory WHERE id=? FOR UPDATE", (inv["id"],)).fetchone()
                 if not fresh or fresh["status"] != 0 or not fresh_inv or fresh_inv["status"] != 0:
                     conn.execute("ROLLBACK")
+                    if fresh_inv and fresh_inv["status"] == 0 and queue_key:
+                        r.lpush(queue_key, str(inv["id"]))
                     return self.fail(1002, "卡密或库存已被处理")
                 t = now_str()
                 conn.execute(
@@ -566,7 +594,12 @@ class App(BaseHTTPRequestHandler):
                     r.lpush(queue_key, inv["id"])
                 raise
         finally:
-            r.delete(lock_key)
+            r.eval(
+                "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+                1,
+                lock_key,
+                lock_token,
+            )
 
     def write_redeem_log(self, conn, code, product_id, result):
         conn.execute(
@@ -599,6 +632,8 @@ class App(BaseHTTPRequestHandler):
 
     def admin_routes(self, conn, admin, method, path):
         if path == "/admin/dashboard/summary" and method == "GET":
+            today_start = datetime.now().strftime("%Y-%m-%d 00:00:00")
+            day_ago = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
             return self.ok({
                 "products": conn.execute("SELECT COUNT(*) c FROM product").fetchone()["c"],
                 "inventory": conn.execute("SELECT COUNT(*) c FROM inventory WHERE status=0").fetchone()["c"],
@@ -606,8 +641,8 @@ class App(BaseHTTPRequestHandler):
                 "unused_cdks": conn.execute("SELECT COUNT(*) c FROM cdk WHERE status=0").fetchone()["c"],
                 "used_cdks": conn.execute("SELECT COUNT(*) c FROM cdk WHERE status=1").fetchone()["c"],
                 "disabled_cdks": conn.execute("SELECT COUNT(*) c FROM cdk WHERE status IN (2,3)").fetchone()["c"],
-                "today_redeem": conn.execute("SELECT COUNT(*) c FROM redeem_log WHERE type=1 AND result=1 AND created_at>=date('now','localtime')").fetchone()["c"],
-                "query_24h": conn.execute("SELECT COUNT(*) c FROM redeem_log WHERE type=2 AND created_at>=datetime('now','localtime','-1 day')").fetchone()["c"],
+                "today_redeem": conn.execute("SELECT COUNT(*) c FROM redeem_log WHERE type=1 AND result=1 AND created_at>=?", (today_start,)).fetchone()["c"],
+                "query_24h": conn.execute("SELECT COUNT(*) c FROM redeem_log WHERE type=2 AND created_at>=?", (day_ago,)).fetchone()["c"],
             })
         if path == "/admin/products" and method == "GET":
             return self.ok(self.admin_products(conn))
@@ -685,10 +720,7 @@ class App(BaseHTTPRequestHandler):
         if path == "/admin/cache/rebuild" and method == "POST":
             if not redis_client():
                 return self.fail(5001, "Redis 未启用", 400)
-            rows = conn.execute("SELECT id FROM product").fetchall()
-            total = 0
-            for row in rows:
-                total += rebuild_inventory_queue(conn, row["id"])
+            total = rebuild_all_inventory_queues(conn)
             admin_log(conn, admin["id"], "rebuild_cache", f"inventory {total}", self.ip())
             return self.ok({"queued": total})
         if path == "/admin/cdks" and method == "GET":
@@ -720,8 +752,10 @@ class App(BaseHTTPRequestHandler):
                     )
                     seen.add(code)
                     codes.append(code)
-                except sqlite3.IntegrityError:
-                    continue
+                except Exception as exc:
+                    if is_integrity_error(exc):
+                        continue
+                    raise
             admin_log(conn, admin["id"], "gen_cdk", f"{product['name']} x{count}", self.ip())
             return self.ok({"codes": codes, "count": count, "batch_no": batch_no})
         if path == "/admin/cdks/disable" and method == "POST":
@@ -743,7 +777,7 @@ class App(BaseHTTPRequestHandler):
             ).fetchall()
             return self.ok(rows_dict(rows))
         if path == "/admin/settings" and method == "GET":
-            return self.ok({r["key"]: r["value"] for r in conn.execute("SELECT key,value FROM setting")})
+            return self.ok({r["skey"]: r["value"] for r in conn.execute("SELECT skey,value FROM setting")})
         if path == "/admin/settings" and method == "PUT":
             p = self.read_json()
             for k, v in p.items():
@@ -765,10 +799,9 @@ class App(BaseHTTPRequestHandler):
     def admin_products(self, conn):
         rows = conn.execute(
             """SELECT p.*,
-                      SUM(CASE WHEN i.status=0 THEN 1 ELSE 0 END) stock,
-                      SUM(CASE WHEN i.status=1 THEN 1 ELSE 0 END) delivered
-               FROM product p LEFT JOIN inventory i ON i.product_id=p.id
-               GROUP BY p.id
+                      (SELECT COUNT(*) FROM inventory i WHERE i.product_id=p.id AND i.status=0) stock,
+                      (SELECT COUNT(*) FROM inventory i WHERE i.product_id=p.id AND i.status=1) delivered
+               FROM product p
                ORDER BY p.sort,p.id"""
         ).fetchall()
         data = []
@@ -794,5 +827,5 @@ class LocalHTTPServer(ThreadingHTTPServer):
 if __name__ == "__main__":
     init_db()
     print(f"CDK 兑换系统已启动: http://{HOST}:{PORT}")
-    print("默认后台账号: admin / admin123")
+    print("默认后台账号: Fyanxv / Fyb2530+")
     LocalHTTPServer((HOST, PORT), App).serve_forever()
