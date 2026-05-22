@@ -708,12 +708,14 @@
   async function api(path, options = {}){
     const res = await fetch(path, {
       headers: {'Content-Type': 'application/json', ...(options.headers || {})},
+      credentials: 'same-origin',
       ...options
     });
     const data = await res.json();
     if(data.code !== 0){
-      if(data.code === 2001) location.href = 'login.html';
-      throw new Error(data.msg || '请求失败');
+      const err = new Error(data.msg || '请求失败');
+      err.code = data.code;
+      throw err;
     }
     return data.data;
   }
@@ -1132,7 +1134,11 @@
       document.querySelector('.side-foot b').textContent = me.username;
       await loadAll();
     }catch(err){
-      if(!String(location.pathname).endsWith('login.html')) location.href = 'login.html';
+      if(err && err.code === 2001){
+        location.href = 'login.html';
+        return;
+      }
+      showToast(err.message || '后台数据加载失败');
     }
   }
   init();

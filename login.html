@@ -70,16 +70,6 @@
   }
   .btn:hover{background:var(--primary-hover);}
 
-  .captcha{display:flex;gap:10px;}
-  .captcha .input{flex:1;}
-  .captcha .img{
-    width:110px;height:42px;border:1px dashed var(--border-strong);
-    border-radius:8px;display:grid;place-items:center;
-    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:18px;letter-spacing:6px;
-    color:var(--primary);background:repeating-linear-gradient(45deg,#f9fafb 0 6px,#fff 6px 12px);
-    user-select:none;cursor:pointer;
-  }
-
   .foot{
     padding:14px 30px 20px;border-top:1px solid var(--border);
     text-align:center;color:var(--text-mute);font-size:12px;background:#fafbff;
@@ -99,7 +89,7 @@
         <label class="lbl">账号</label>
         <div class="input-wrap">
           <span class="ico">👤</span>
-          <input class="input" id="username" placeholder="请输入管理员账号" value="Fyanxv" />
+          <input class="input" id="username" placeholder="请输入管理员账号" autocomplete="username" />
         </div>
       </div>
 
@@ -107,15 +97,7 @@
         <label class="lbl">密码</label>
         <div class="input-wrap">
           <span class="ico">🔒</span>
-          <input class="input" id="password" type="password" placeholder="请输入密码" />
-        </div>
-      </div>
-
-      <div class="field">
-        <label class="lbl">验证码</label>
-        <div class="captcha">
-          <input class="input" id="captchaInput" placeholder="请输入右侧验证码" />
-          <div class="img" id="captchaImg">8KQ2</div>
+          <input class="input" id="password" type="password" placeholder="请输入密码" autocomplete="current-password" />
         </div>
       </div>
 
@@ -134,24 +116,12 @@
 </div>
 <script>
   const loginBtn = document.getElementById('loginBtn');
-  const captchaImg = document.getElementById('captchaImg');
-  function newCaptcha(){
-    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-    let text = '';
-    for(let i=0;i<4;i++) text += chars[Math.floor(Math.random() * chars.length)];
-    captchaImg.textContent = text;
-  }
-  captchaImg.addEventListener('click', newCaptcha);
-  newCaptcha();
 
   loginBtn.addEventListener('click', async () => {
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
-    const captcha = document.getElementById('captchaInput').value.trim().toUpperCase();
-    if(captcha !== captchaImg.textContent.trim().toUpperCase()){
-      alert('验证码错误');
-      newCaptcha();
-      document.getElementById('captchaInput').value = '';
+    if(!username || !password){
+      alert('请输入账号和密码');
       return;
     }
     loginBtn.disabled = true;
@@ -159,6 +129,7 @@
     try {
       const res = await fetch('/admin/login', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({username, password})
       });
