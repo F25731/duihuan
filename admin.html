@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>管理控制台</title>
+<style>
+  :root{
+    --bg:#f4f6fb;
+    --sidebar:#0e1626;
+    --sidebar-2:#0a1120;
+    --sidebar-text:#a4adbf;
+    --sidebar-text-strong:#ffffff;
+    --sidebar-active-soft:rgba(59,130,246,.14);
+    --card:#ffffff;
+    --border:#e6eaf2;
+    --border-strong:#d4d9e4;
+    --text:#1f2937;
+    --text-soft:#6b7280;
+    --text-mute:#9ca3af;
+    --primary:#2563eb;
+    --primary-hover:#1d4ed8;
+    --primary-soft:#eff6ff;
+    --success:#10b981;
+    --success-soft:#ecfdf5;
+    --warn:#f59e0b;
+    --warn-soft:#fffbeb;
+    --danger:#ef4444;
+    --danger-soft:#fef2f2;
+    --info:#0ea5e9;
+    --info-soft:#f0f9ff;
+    --shadow:0 4px 18px rgba(15,23,42,.04);
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:"PingFang SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;height:100%;}
+  button{font-family:inherit;cursor:pointer;}
+
+  .app{display:grid;grid-template-columns:240px 1fr;min-height:100vh;}
+
+  /* ============ Sidebar ============ */
+  .sidebar{
+    background:var(--sidebar);color:var(--sidebar-text);
+    display:flex;flex-direction:column;border-right:1px solid #0a0f1a;
+    position:sticky;top:0;height:100vh;
+  }
+  .brand{
+    padding:22px 22px 18px;border-bottom:1px solid #1a2336;
+  }
+  .brand .name{color:#fff;font-weight:700;font-size:16px;letter-spacing:3px;}
+  .brand .sub{color:var(--sidebar-text);font-size:12px;margin-top:4px;letter-spacing:1px;}
+
+  .menu{padding:12px 10px;flex:1;overflow-y:auto;}
+  .menu .grp{padding:14px 12px 6px;font-size:11px;color:#5d6781;letter-spacing:2px;}
+  .menu a{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 12px;border-radius:8px;
+    color:var(--sidebar-text);font-size:14px;text-decoration:none;
+    transition:.15s;margin-bottom:2px;
+  }
+  .menu a:hover{color:#fff;background:rgba(255,255,255,.04);}
+  .menu a.active{background:var(--sidebar-active-soft);color:#fff;font-weight:600;box-shadow:inset 3px 0 0 #3b82f6;}
+  .menu a .ico{width:18px;text-align:center;font-size:15px;opacity:.85;}
+
+  .side-foot{padding:14px 16px;border-top:1px solid #1a2336;font-size:12px;}
+  .side-foot .row{display:flex;justify-content:space-between;color:var(--sidebar-text);margin-bottom:8px;}
+  .side-foot .row b{color:#fff;}
+  .side-foot button{
+    width:100%;background:transparent;border:1px solid #2a3550;color:#cbd5e1;
+    padding:8px;border-radius:8px;font-size:12px;
+  }
+  .side-foot button:hover{border-color:#ef4444;color:#ef4444;}
+
+  /* ============ Topbar ============ */
+  .topbar{
+    background:#fff;border-bottom:1px solid var(--border);
+    padding:14px 28px;display:flex;align-items:center;justify-content:space-between;
+    position:sticky;top:0;z-index:30;
+  }
+  .crumb{font-size:13px;color:var(--text-soft);}
+  .crumb b{color:var(--text);}
+  .top-right{display:flex;align-items:center;gap:18px;}
+  .top-right .status{font-size:13px;color:var(--success);display:flex;align-items:center;gap:6px;}
+  .top-right .status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--success);box-shadow:0 0 0 4px rgba(16,185,129,.15);}
+  .avatar{
+    width:34px;height:34px;border-radius:50%;
+    background:linear-gradient(135deg,#3b82f6,#6366f1);
+    color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px;
+  }
+
+  /* ============ Content ============ */
+  .content{padding:24px 28px;}
+  .page-head{margin-bottom:20px;}
+  .page-head h1{margin:0;font-size:22px;color:var(--text);}
+  .page-head p{margin:4px 0 0;font-size:13px;color:var(--text-soft);}
+
+  .grid{display:grid;gap:16px;}
+  .grid-6{grid-template-columns:repeat(6,minmax(0,1fr));}
+  .grid-4{grid-template-columns:repeat(4,minmax(0,1fr));}
+  .grid-3{grid-template-columns:repeat(3,minmax(0,1fr));}
+  .grid-2{grid-template-columns:repeat(2,minmax(0,1fr));}
+  @media (max-width:1200px){.grid-6{grid-template-columns:repeat(3,1fr);} .grid-4{grid-template-columns:repeat(2,1fr);}}
+  @media (max-width:760px){.grid-6,.grid-4,.grid-3,.grid-2{grid-template-columns:1fr;}}
+
+  .card{
+    background:var(--card);border:1px solid var(--border);
+    border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);
+  }
+  .card .label{font-size:13px;color:var(--text-soft);margin-bottom:8px;}
+  .card .num{font-size:26px;font-weight:800;color:var(--text);}
+  .card .delta{font-size:12px;margin-top:6px;}
+  .delta.up{color:var(--success);}
+  .delta.down{color:var(--danger);}
+
+  .card-block{
+    background:var(--card);border:1px solid var(--border);
+    border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);
+    margin-top:18px;
+  }
+  .card-block .head{
+    display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;
+  }
+  .card-block .head h3{margin:0;font-size:15px;}
+  .card-block .head .actions{display:flex;gap:8px;}
+
+  /* ============ Buttons ============ */
+  .btn{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:8px 14px;border-radius:8px;border:1px solid var(--border-strong);
+    background:#fff;color:var(--text);font-size:13px;font-weight:500;transition:.15s;
+  }
+  .btn:hover{border-color:var(--primary);color:var(--primary);}
+  .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary);}
+  .btn-primary:hover{background:var(--primary-hover);color:#fff;}
+  .btn-danger{background:var(--danger);color:#fff;border-color:var(--danger);}
+  .btn-danger:hover{background:#dc2626;color:#fff;}
+  .btn-success{background:var(--success);color:#fff;border-color:var(--success);}
+  .btn-sm{padding:5px 10px;font-size:12px;}
+
+  /* ============ Form ============ */
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .input,.select,.textarea{
+    width:100%;padding:9px 12px;border:1px solid var(--border-strong);
+    border-radius:8px;font-size:13px;color:var(--text);background:#fff;
+    font-family:inherit;outline:none;transition:.15s;
+  }
+  .input:focus,.select:focus,.textarea:focus{
+    border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.12);
+  }
+  .textarea{
+    min-height:240px;resize:vertical;
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    line-height:1.55;white-space:pre;overflow:auto;
+  }
+  .field{margin-bottom:14px;}
+  .field > .lbl{font-size:13px;color:var(--text-soft);margin-bottom:6px;display:block;}
+  .help{font-size:12px;color:var(--text-mute);margin-top:6px;}
+
+  /* ============ Table ============ */
+  .table{width:100%;border-collapse:collapse;font-size:13px;}
+  .table th,.table td{
+    text-align:left;padding:12px 14px;border-bottom:1px solid var(--border);
+    color:var(--text);vertical-align:middle;
+  }
+  .table th{background:#f9fafb;color:var(--text-soft);font-weight:600;font-size:12px;letter-spacing:.5px;}
+  .table tbody tr:hover{background:#fafbff;}
+  .table .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;word-break:break-all;}
+
+  .badge{padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;}
+  .badge-blue{background:var(--primary-soft);color:var(--primary);}
+  .badge-green{background:var(--success-soft);color:#047857;}
+  .badge-gray{background:#f3f4f6;color:#6b7280;}
+  .badge-red{background:var(--danger-soft);color:var(--danger);}
+  .badge-yellow{background:var(--warn-soft);color:#b45309;}
+
+  .ops a{color:var(--primary);margin-right:10px;font-size:13px;cursor:pointer;}
+  .ops a.danger{color:var(--danger);}
+
+  .pager{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 0 0;color:var(--text-soft);font-size:13px;
+  }
+  .pager .pages{display:flex;gap:4px;}
+  .pager .pages span{
+    min-width:30px;height:30px;display:grid;place-items:center;
+    border:1px solid var(--border);border-radius:6px;cursor:pointer;background:#fff;
+  }
+  .pager .pages span.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+
+  /* ============ Chart ============ */
+  .chart{
+    height:240px;border-radius:8px;border:1px solid var(--border);
+    background:
+      linear-gradient(180deg,rgba(59,130,246,.08),rgba(59,130,246,0)),
+      repeating-linear-gradient(0deg,transparent 0 39px,#eef2f9 39px 40px),
+      repeating-linear-gradient(90deg,transparent 0 79px,#eef2f9 79px 80px),
+      #fff;
+    position:relative;overflow:hidden;
+  }
+  .chart svg{position:absolute;inset:0;width:100%;height:100%;}
+  .chart-x{
+    display:flex;justify-content:space-between;
+    color:var(--text-mute);font-size:11px;padding:0 10px;margin-top:6px;
+  }
+
+  /* ============ Tabs ============ */
+  .ptabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;}
+  .ptabs > div{
+    padding:10px 16px;font-size:14px;color:var(--text-soft);
+    border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;
+  }
+  .ptabs > div.active{color:var(--primary);border-color:var(--primary);font-weight:600;}
+
+  .ppage{display:none;}
+  .ppage.active{display:block;}
+
+  /* ============ Modal ============ */
+  .modal-mask{
+    position:fixed;inset:0;background:rgba(15,23,42,.45);
+    display:none;align-items:center;justify-content:center;z-index:100;padding:16px;
+  }
+  .modal-mask.show{display:flex;}
+  .modal{
+    background:#fff;border-radius:14px;width:600px;max-width:100%;
+    box-shadow:0 24px 80px rgba(15,23,42,.22);overflow:hidden;
+  }
+  .modal .m-head{
+    padding:16px 20px;border-bottom:1px solid var(--border);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .modal .m-head h3{margin:0;font-size:16px;}
+  .modal .m-body{padding:20px;max-height:64vh;overflow:auto;}
+  .modal .m-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;background:#fafbff;}
+  .close{color:var(--text-mute);font-size:18px;cursor:pointer;background:none;border:none;}
+
+  /* ============ Stock grid (admin preview) ============ */
+  .stockcell{display:inline-flex;gap:3px;vertical-align:middle;}
+  .stockcell i{display:block;width:11px;height:14px;border-radius:2px;background:#e5e7eb;}
+  .stockcell i.high{background:#10b981;}
+  .stockcell i.mid{background:#f59e0b;}
+  .stockcell i.low{background:#f87171;}
+  .stockcell i.crit{background:#ef4444;}
+
+  /* ============ Toast ============ */
+  .toast{
+    position:fixed;left:50%;bottom:32px;transform:translateX(-50%) translateY(20px);
+    background:#111827;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;
+    opacity:0;pointer-events:none;transition:.25s;z-index:200;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  .gap-12{gap:12px;}
+  .mt-8{margin-top:8px;} .mt-16{margin-top:16px;}
+  .flex-between{display:flex;justify-content:space-between;align-items:center;}
+  .muted{color:var(--text-mute);font-size:12px;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ===================== Sidebar ===================== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="name">管理控制台</div>
+      <div class="sub">CDK / 库存 / 商品</div>
+    </div>
+
+    <nav class="menu">
+      <div class="grp">概览</div>
+      <a href="#" class="nav-link active" data-page="dashboard"><span class="ico">📊</span> 仪表盘</a>
+
+      <div class="grp">业务管理</div>
+      <a href="#" class="nav-link" data-page="products"><span class="ico">🧩</span> 商品管理</a>
+      <a href="#" class="nav-link" data-page="stock"><span class="ico">📦</span> 库存管理</a>
+      <a href="#" class="nav-link" data-page="cdk"><span class="ico">🎟️</span> 卡密管理</a>
+      <a href="#" class="nav-link" data-page="redeem-log"><span class="ico">📜</span> 兑换记录</a>
+
+      <div class="grp">系统</div>
+      <a href="#" class="nav-link" data-page="settings"><span class="ico">⚙️</span> 站点设置</a>
+      <a href="#" class="nav-link" data-page="logs"><span class="ico">📁</span> 操作日志</a>
+      <a href="#" class="nav-link" data-page="docs"><span class="ico">📘</span> 使用文档</a>
+    </nav>
+
+    <div class="side-foot">
+      <div class="row"><span>当前账号</span><b>admin</b></div>
+      <button onclick="logout()">退出登录</button>
+    </div>
+  </aside>
+
+  <!-- ===================== Main ===================== -->
+  <main>
+    <div class="topbar">
+      <div class="crumb">管理控制台 / <b id="crumb">仪表盘</b></div>
+      <div class="top-right">
+        <span class="status">服务运行中</span>
+        <button class="btn btn-sm">📩 通知</button>
+        <div class="avatar">A</div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ============ Dashboard ============ -->
+      <section class="ppage active" data-page="dashboard">
+        <div class="page-head"><h1>仪表盘</h1><p>资源库与兑换情况总览</p></div>
+
+        <div class="grid grid-6">
+          <div class="card"><div class="label">商品总数</div><div class="num">12</div><div class="delta up">本周新增 +2</div></div>
+          <div class="card"><div class="label">库存总量</div><div class="num">8,431</div><div class="delta down">较昨日 -126</div></div>
+          <div class="card"><div class="label">已生成 CDK</div><div class="num">1,479,770</div><div class="delta up">+128 今日</div></div>
+          <div class="card"><div class="label">未使用 CDK</div><div class="num">12,302</div><div class="delta up">健康</div></div>
+          <div class="card"><div class="label">今日兑换</div><div class="num">48</div><div class="delta up">+12</div></div>
+          <div class="card"><div class="label">24h 查询</div><div class="num">316</div><div class="delta up">+25%</div></div>
+        </div>
+
+        <div class="card-block">
+          <div class="head">
+            <h3>最近 14 天调用趋势</h3>
+            <div class="actions">
+              <button class="btn btn-sm">7 天</button>
+              <button class="btn btn-sm btn-primary">14 天</button>
+              <button class="btn btn-sm">30 天</button>
+            </div>
+          </div>
+          <div class="chart">
+            <svg viewBox="0 0 800 240" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="g1" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#3b82f6" stop-opacity=".35"/>
+                  <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path d="M0,200 L60,170 L120,180 L180,140 L240,150 L300,110 L360,120 L420,80 L480,95 L540,60 L600,85 L660,55 L720,70 L800,40 L800,240 L0,240 Z" fill="url(#g1)"/>
+              <path d="M0,200 L60,170 L120,180 L180,140 L240,150 L300,110 L360,120 L420,80 L480,95 L540,60 L600,85 L660,55 L720,70 L800,40" stroke="#2563eb" stroke-width="2" fill="none"/>
+            </svg>
+          </div>
+          <div class="chart-x">
+            <span>05-09</span><span>05-11</span><span>05-13</span><span>05-15</span><span>05-17</span><span>05-19</span><span>05-21</span><span>今日</span>
+          </div>
+        </div>
+
+        <div class="grid grid-2 mt-16">
+          <div class="card-block" style="margin-top:0;">
+            <div class="head"><h3>最近兑换</h3><a class="muted" href="#">查看全部 →</a></div>
+            <table class="table">
+              <thead><tr><th>卡密</th><th>商品</th><th>时间</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr><td class="code">BASE-A1B2-C3D4-E5F6-G7H8</td><td>基础成品号</td><td>2026-05-22 14:36</td><td><span class="badge badge-green">成功</span></td></tr>
+                <tr><td class="code">PRO-9X8Y-7Z6W-5V4U-3T2S</td><td>Pro 月卡</td><td>2026-05-22 14:30</td><td><span class="badge badge-green">成功</span></td></tr>
+                <tr><td class="code">BASE-XXXX-YYYY-ZZZZ-WWWW</td><td>—</td><td>2026-05-22 14:21</td><td><span class="badge badge-red">卡密无效</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card-block" style="margin-top:0;">
+            <div class="head"><h3>低库存预警</h3><a class="muted" href="#">前往补货 →</a></div>
+            <table class="table">
+              <thead><tr><th>商品</th><th>剩余</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr><td>Pro 季卡</td><td>6</td><td><span class="stockcell"><i class="crit"></i><i></i><i></i><i></i><i></i></span></td></tr>
+                <tr><td>Pro 月卡</td><td>42</td><td><span class="stockcell"><i class="mid"></i><i class="mid"></i><i class="mid"></i><i></i><i></i></span></td></tr>
+                <tr><td>独享号 · 限定</td><td>0</td><td><span class="stockcell"><i></i><i></i><i></i><i></i><i></i></span></td></tr>
+                <tr><td>基础成品号</td><td>1,284</td><td><span class="stockcell"><i class="high"></i><i class="high"></i><i class="high"></i><i class="high"></i><i class="high"></i></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ Products ============ -->
+      <section class="ppage" data-page="products">
+        <div class="page-head"><h1>商品管理</h1><p>维护商品名称、简介、使用说明、卡密前缀与满格阈值</p></div>
+
+        <div class="card-block" style="margin-top:0;">
+          <div class="head">
+            <div class="row">
+              <input class="input" style="width:240px;" placeholder="搜索商品名称 / ID" />
+              <select class="select" style="width:140px;"><option>全部状态</option><option>上架</option><option>下架</option></select>
+            </div>
+            <div class="actions">
+              <button class="btn">🔄 刷新</button>
+              <button class="btn btn-primary" onclick="openProductModal()">＋ 新增商品</button>
+            </div>
+          </div>
+
+          <table class="table">
+            <thead>
+              <tr>
+                <th style="width:60px;">ID</th>
+                <th>商品名称</th>
+                <th>卡密前缀</th>
+                <th>库存</th>
+                <th>满格阈值</th>
+                <th>库存档位</th>
+                <th>状态</th>
+                <th style="width:200px;">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>#001</td><td>基础成品号</td>
+                <td class="code">BASE</td>
+                <td>1,284</td><td>100</td>
+                <td><span class="stockcell"><i class="high"></i><i class="high"></i><i class="high"></i><i class="high"></i><i class="high"></i></span></td>
+                <td><span class="badge badge-green">上架</span></td>
+                <td class="ops">
+                  <a>编辑</a><a>库存</a><a onclick="openModal('cdkGenModal')">生成卡密</a><a class="danger">下架</a>
+                </td>
+              </tr>
+              <tr>
+                <td>#002</td><td>Pro 订阅 · 月卡</td>
+                <td class="code">PRO</td>
+                <td>42</td><td>100</td>
+                <td><span class="stockcell"><i class="mid"></i><i class="mid"></i><i class="mid"></i><i></i><i></i></span></td>
+                <td><span class="badge badge-yellow">库存低</span></td>
+                <td class="ops"><a>编辑</a><a>库存</a><a onclick="openModal('cdkGenModal')">生成卡密</a><a class="danger">下架</a></td>
+              </tr>
+              <tr>
+                <td>#003</td><td>独享号 · 限定</td>
+                <td class="code">VIP</td>
+                <td>0</td><td>20</td>
+                <td><span class="stockcell"><i></i><i></i><i></i><i></i><i></i></span></td>
+                <td><span class="badge badge-gray">售罄</span></td>
+                <td class="ops"><a>编辑</a><a>库存</a><a onclick="openModal('cdkGenModal')">生成卡密</a><a class="danger">下架</a></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="pager">
+            <span>共 3 条</span>
+            <div class="pages"><span>‹</span><span class="active">1</span><span>›</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ Stock ============ -->
+      <section class="ppage" data-page="stock">
+        <div class="page-head"><h1>库存管理</h1><p>导入与维护各商品的发货库存。一行代表一条库存,单行无字符长度限制。</p></div>
+
+        <div class="ptabs">
+          <div class="active">导入库存</div>
+          <div>库存查看</div>
+          <div>导入历史</div>
+        </div>
+
+        <div class="card-block" style="margin-top:0;">
+          <div class="grid grid-3">
+            <div class="field">
+              <label class="lbl">选择商品</label>
+              <select class="select">
+                <option>基础成品号 (#001)</option>
+                <option>Pro 订阅 · 月卡 (#002)</option>
+                <option>独享号 · 限定 (#003)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="lbl">导入模式</label>
+              <select class="select">
+                <option>追加到现有库存</option>
+                <option>清空后导入</option>
+                <option>去重追加</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="lbl">库存内容 — 一行一条,无字符长度限制,支持超长字符串</label>
+            <textarea class="textarea" id="stockTextarea" placeholder="示例:&#10;account_a@hotmail.com----password123----verylongtokenhere...&#10;account_b@hotmail.com----password456----anotherverylongstring..."></textarea>
+            <div class="flex-between mt-8">
+              <span class="muted">已识别条数: <b id="lineCount" style="color:var(--text);">0</b> 行 · 自动忽略空行与重复行</span>
+              <div class="row">
+                <button class="btn btn-sm">从文件读取 .txt</button>
+                <button class="btn btn-sm" onclick="document.getElementById('stockTextarea').value='';document.getElementById('lineCount').textContent='0';">清空</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex-between mt-16">
+            <span class="muted">导入后会立即可被前台兑换</span>
+            <div class="row">
+              <button class="btn">预览</button>
+              <button class="btn btn-primary">立即导入</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-block">
+          <div class="head"><h3>当前库存预览(基础成品号)</h3>
+            <div class="actions">
+              <input class="input btn-sm" style="width:240px;" placeholder="搜索库存内容" />
+              <button class="btn">🗑 批量删除</button>
+              <button class="btn">📤 导出</button>
+            </div>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th style="width:32px;"><input type="checkbox" /></th>
+                <th style="width:60px;">序号</th>
+                <th>内容(完整存储,前台兑换后整段发出)</th>
+                <th style="width:130px;">导入时间</th>
+                <th style="width:80px;">状态</th>
+                <th style="width:80px;">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><input type="checkbox" /></td>
+                <td>1</td>
+                <td class="code">account_a@hotmail.com----Aa123456----verylongtokenstringverylongtokenstringverylongtokenstring</td>
+                <td class="muted">05-22 09:12</td>
+                <td><span class="badge badge-blue">未发货</span></td>
+                <td class="ops"><a>查看</a><a class="danger">删除</a></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" /></td>
+                <td>2</td>
+                <td class="code">account_b@hotmail.com----P@ssw0rd----anotherverylongstringanotherverylongstring</td>
+                <td class="muted">05-22 09:12</td>
+                <td><span class="badge badge-green">已发货</span></td>
+                <td class="ops"><a>查看</a><a class="danger">删除</a></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" /></td>
+                <td>3</td>
+                <td class="code">account_c@hotmail.com----Pwd----verylongdataverylongdataverylongdata</td>
+                <td class="muted">05-21 18:30</td>
+                <td><span class="badge badge-blue">未发货</span></td>
+                <td class="ops"><a>查看</a><a class="danger">删除</a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ CDK ============ -->
+      <section class="ppage" data-page="cdk">
+        <div class="page-head"><h1>卡密管理</h1><p>生成、查询、禁用兑换卡密。卡密格式固定:<span class="code">前缀-XXXX-XXXX-XXXX-XXXX</span>(16 位字母数字)</p></div>
+
+        <div class="grid grid-4">
+          <div class="card"><div class="label">卡密总数</div><div class="num">1,479,770</div></div>
+          <div class="card"><div class="label">未使用</div><div class="num" style="color:var(--primary);">12,302</div></div>
+          <div class="card"><div class="label">已使用</div><div class="num" style="color:var(--success);">1,467,468</div></div>
+          <div class="card"><div class="label">已禁用 / 过期</div><div class="num" style="color:var(--danger);">3,128</div></div>
+        </div>
+
+        <div class="card-block">
+          <div class="head">
+            <div class="row">
+              <input class="input" style="width:260px;" placeholder="按卡密 / 备注搜索" />
+              <select class="select" style="width:180px;"><option>全部商品</option><option>基础成品号</option><option>Pro 月卡</option><option>独享号</option></select>
+              <select class="select" style="width:140px;"><option>全部状态</option><option>未使用</option><option>已使用</option><option>已禁用</option></select>
+              <input class="input" type="date" style="width:160px;" />
+            </div>
+            <div class="actions">
+              <button class="btn" onclick="openModal('cdkExportModal')">📤 导出</button>
+              <button class="btn btn-danger">🗑 批量禁用</button>
+              <button class="btn btn-primary" onclick="openModal('cdkGenModal')">＋ 生成卡密</button>
+            </div>
+          </div>
+
+          <table class="table">
+            <thead>
+              <tr>
+                <th style="width:32px;"><input type="checkbox" /></th>
+                <th>卡密</th>
+                <th>商品</th>
+                <th>状态</th>
+                <th>生成时间</th>
+                <th>使用时间</th>
+                <th>备注</th>
+                <th style="width:140px;">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><input type="checkbox" /></td>
+                <td class="code">BASE-A1B2-C3D4-E5F6-G7H8</td>
+                <td>基础成品号</td>
+                <td><span class="badge badge-blue">未使用</span></td>
+                <td class="muted">05-22 09:00</td>
+                <td class="muted">—</td>
+                <td class="muted">卡网批次 #2026</td>
+                <td class="ops"><a>详情</a><a>复制</a><a class="danger">禁用</a></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" /></td>
+                <td class="code">PRO-9X8Y-7Z6W-5V4U-3T2S</td>
+                <td>Pro 月卡</td>
+                <td><span class="badge badge-green">已使用</span></td>
+                <td class="muted">05-20 11:20</td>
+                <td class="muted">05-20 14:21</td>
+                <td class="muted">代理 A</td>
+                <td class="ops"><a>详情</a><a>复制</a></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" /></td>
+                <td class="code">VIP-OLD1-OLD2-OLD3-OLD4</td>
+                <td>独享号</td>
+                <td><span class="badge badge-yellow">已过期</span></td>
+                <td class="muted">04-15 10:00</td>
+                <td class="muted">—</td>
+                <td class="muted">—</td>
+                <td class="ops"><a>详情</a><a>复制</a><a class="danger">删除</a></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" /></td>
+                <td class="code">BASE-TEST-DEMO-0001-AAAA</td>
+                <td>基础成品号</td>
+                <td><span class="badge badge-red">已禁用</span></td>
+                <td class="muted">05-10 12:00</td>
+                <td class="muted">—</td>
+                <td class="muted">测试占用</td>
+                <td class="ops"><a>详情</a><a>启用</a></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="pager">
+            <span>共 1,479,770 条</span>
+            <div class="pages">
+              <span>‹</span><span class="active">1</span><span>2</span><span>3</span><span>…</span><span>98651</span><span>›</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ Redeem Log ============ -->
+      <section class="ppage" data-page="redeem-log">
+        <div class="page-head"><h1>兑换记录</h1><p>所有兑换、查询、失败操作的完整流水</p></div>
+        <div class="card-block" style="margin-top:0;">
+          <div class="head">
+            <div class="row">
+              <input class="input" style="width:240px;" placeholder="按卡密搜索" />
+              <select class="select" style="width:140px;"><option>全部类型</option><option>兑换</option><option>查询</option></select>
+              <input class="input" type="date" style="width:160px;" />
+              <input class="input" type="date" style="width:160px;" />
+            </div>
+            <div class="actions">
+              <button class="btn">📤 导出</button>
+            </div>
+          </div>
+          <table class="table">
+            <thead><tr><th>时间</th><th>类型</th><th>卡密</th><th>商品</th><th>IP</th><th>结果</th></tr></thead>
+            <tbody>
+              <tr><td class="muted">05-22 14:36:12</td><td><span class="badge badge-blue">兑换</span></td><td class="code">BASE-A1B2-C3D4-E5F6-G7H8</td><td>基础成品号</td><td>1.2.3.4</td><td><span class="badge badge-green">成功</span></td></tr>
+              <tr><td class="muted">05-22 14:30:01</td><td><span class="badge badge-blue">兑换</span></td><td class="code">PRO-9X8Y-7Z6W-5V4U-3T2S</td><td>Pro 月卡</td><td>5.6.7.8</td><td><span class="badge badge-green">成功</span></td></tr>
+              <tr><td class="muted">05-22 14:21:33</td><td><span class="badge badge-gray">查询</span></td><td class="code">(批量 12 条)</td><td>—</td><td>9.10.11.12</td><td><span class="badge badge-green">完成</span></td></tr>
+              <tr><td class="muted">05-22 14:18:08</td><td><span class="badge badge-blue">兑换</span></td><td class="code">BASE-XXXX-YYYY-ZZZZ-WWWW</td><td>—</td><td>1.1.1.1</td><td><span class="badge badge-red">卡密无效</span></td></tr>
+              <tr><td class="muted">05-22 13:58:44</td><td><span class="badge badge-blue">兑换</span></td><td class="code">VIP-OLD1-OLD2-OLD3-OLD4</td><td>独享号</td><td>2.2.2.2</td><td><span class="badge badge-yellow">已过期</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ Settings ============ -->
+      <section class="ppage" data-page="settings">
+        <div class="page-head"><h1>站点设置</h1><p>站点基础信息与兑换规则配置</p></div>
+        <div class="card-block" style="margin-top:0;">
+          <div class="grid grid-2">
+            <div class="field"><label class="lbl">站点名称(仅后台/浏览器标题使用)</label><input class="input" value="兑换中心" /></div>
+            <div class="field"><label class="lbl">单次查询上限</label><input class="input" value="50" /></div>
+            <div class="field"><label class="lbl">兑换防刷间隔(秒)</label><input class="input" value="3" /></div>
+            <div class="field"><label class="lbl">兑换失败提示</label><input class="input" value="卡密无效或已使用" /></div>
+            <div class="field"><label class="lbl">前台保留兑换记录(条/客户端)</label><input class="input" value="200" /></div>
+            <div class="field"><label class="lbl">前台是否显示实时库存</label>
+              <select class="select"><option>显示</option><option>隐藏</option></select>
+            </div>
+            <div class="field" style="grid-column:1/-1;"><label class="lbl">公告 / 顶部通知</label><textarea class="textarea" style="min-height:100px;"></textarea></div>
+          </div>
+          <div class="flex-between mt-16">
+            <span class="muted">所有改动将立即生效</span>
+            <button class="btn btn-primary">保存设置</button>
+          </div>
+        </div>
+
+        <div class="card-block">
+          <div class="head"><h3>修改管理员密码</h3></div>
+          <div class="grid grid-3">
+            <div class="field"><label class="lbl">原密码</label><input class="input" type="password" /></div>
+            <div class="field"><label class="lbl">新密码</label><input class="input" type="password" /></div>
+            <div class="field"><label class="lbl">确认新密码</label><input class="input" type="password" /></div>
+          </div>
+          <button class="btn btn-primary">更新密码</button>
+        </div>
+      </section>
+
+      <!-- ============ Logs ============ -->
+      <section class="ppage" data-page="logs">
+        <div class="page-head"><h1>操作日志</h1><p>后台管理员所有关键操作的审计日志</p></div>
+        <div class="card-block" style="margin-top:0;">
+          <table class="table">
+            <thead><tr><th>时间</th><th>账号</th><th>操作</th><th>对象</th><th>IP</th></tr></thead>
+            <tbody>
+              <tr><td class="muted">05-22 14:00</td><td>admin</td><td>导入库存</td><td>基础成品号 +500 条</td><td>127.0.0.1</td></tr>
+              <tr><td class="muted">05-22 13:50</td><td>admin</td><td>生成卡密</td><td>Pro 月卡 ×200</td><td>127.0.0.1</td></tr>
+              <tr><td class="muted">05-22 11:22</td><td>admin</td><td>禁用卡密</td><td>BASE-TEST-DEMO-0001-AAAA</td><td>127.0.0.1</td></tr>
+              <tr><td class="muted">05-21 22:01</td><td>admin</td><td>修改商品</td><td>#002 Pro 月卡</td><td>127.0.0.1</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ Docs ============ -->
+      <section class="ppage" data-page="docs">
+        <div class="page-head"><h1>使用文档</h1><p>商品配置、库存导入、卡密生成流程</p></div>
+        <div class="card-block" style="margin-top:0;line-height:1.8;font-size:14px;">
+          <h3 style="margin-top:0;">1. 新增商品</h3>
+          <p class="muted">在「商品管理」点击「＋ 新增商品」,填写名称、商品简介、使用说明、卡密前缀(如 BASE / PRO / VIP)以及满格阈值。简介和使用说明会在用户兑换成功后展示。</p>
+          <h3>2. 导入库存</h3>
+          <p class="muted">在「库存管理」选择商品后,粘贴一行一条的库存内容,单行无字符上限,可使用 ---- 等分隔符存储多字段。前台兑换后整段返回给用户。</p>
+          <h3>3. 生成卡密</h3>
+          <p class="muted">在「卡密管理」或商品行点击「生成卡密」,只需选商品和数量即可,系统自动按 <code>前缀-XXXX-XXXX-XXXX-XXXX</code> 16 位字母数字格式生成,不可自定义。</p>
+          <h3>4. 用户兑换流程</h3>
+          <p class="muted">用户在前台输入卡密 → 系统校验有效性 → 从对应商品库存中取出一条 → 返回内容、商品简介与使用说明,并标记卡密已使用、库存条目已发货。用户的兑换记录仅保存在该客户端浏览器中。</p>
+          <h3>5. 库存档位显示逻辑</h3>
+          <p class="muted">前台以 5 个色块表示库存:数量 ≥ 满格阈值显示 5 格绿色;按比例递减,4-5 格绿色为充足、3 格黄色为偏少、2 格橙色为较少、1 格红色为紧缺、0 为全灰售罄。</p>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- ============ Modal: 商品新增 ============ -->
+<div class="modal-mask" id="productModal">
+  <div class="modal">
+    <div class="m-head"><h3>新增 / 编辑商品</h3><button class="close" onclick="closeModal('productModal')">×</button></div>
+    <div class="m-body">
+      <div class="grid grid-2">
+        <div class="field"><label class="lbl">商品名称</label><input class="input" placeholder="如:基础成品号" /></div>
+        <div class="field">
+          <label class="lbl">卡密前缀(3-5 位字母,如 BASE / PRO / VIP)</label>
+          <input class="input" placeholder="BASE" maxlength="5" style="text-transform:uppercase;" />
+          <div class="help">生成的卡密形如: <span class="code">BASE-XXXX-XXXX-XXXX-XXXX</span></div>
+        </div>
+        <div class="field" style="grid-column:1/-1;">
+          <label class="lbl">满格阈值(库存 ≥ 此值显示 5 格绿色)</label>
+          <input class="input" type="number" value="100" />
+          <div class="help">前台将按 库存/阈值 比例显示 5 格彩条</div>
+        </div>
+      </div>
+
+      <div class="field"><label class="lbl">商品简介(兑换成功后展示给用户)</label><textarea class="textarea" style="min-height:80px;" placeholder="例如:长期稳定的基础账号,适合日常使用..."></textarea></div>
+      <div class="field"><label class="lbl">使用说明(支持多行文本)</label><textarea class="textarea" style="min-height:120px;" placeholder="1. 复制商品内容&#10;2. 按客户端要求登录&#10;3. 立即修改资料避免封号"></textarea></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal('productModal')">取消</button>
+      <button class="btn btn-primary">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Modal: 生成 CDK ============ -->
+<div class="modal-mask" id="cdkGenModal">
+  <div class="modal">
+    <div class="m-head"><h3>批量生成卡密</h3><button class="close" onclick="closeModal('cdkGenModal')">×</button></div>
+    <div class="m-body">
+      <div class="field"><label class="lbl">关联商品</label>
+        <select class="select" id="genProduct">
+          <option data-prefix="BASE">基础成品号 (#001) · 前缀 BASE</option>
+          <option data-prefix="PRO">Pro 月卡 (#002) · 前缀 PRO</option>
+          <option data-prefix="VIP">独享号 (#003) · 前缀 VIP</option>
+        </select>
+      </div>
+      <div class="grid grid-2">
+        <div class="field"><label class="lbl">生成数量</label><input class="input" id="genCount" type="number" value="100" min="1" max="100000" /></div>
+        <div class="field">
+          <label class="lbl">有效天数</label>
+          <input class="input" id="genDays" type="number" value="0" min="0" />
+          <div class="help"><b>0</b> = 永久不限制 · <b>1</b> = 1 天 · 以此类推</div>
+        </div>
+        <div class="field" style="grid-column:1/-1;"><label class="lbl">备注</label><input class="input" placeholder="如:卡网批次 #2026" /></div>
+      </div>
+
+      <div style="background:var(--info-soft);border:1px solid #bae6fd;color:#075985;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.6;">
+        卡密格式固定为 <b>前缀-XXXX-XXXX-XXXX-XXXX</b> (16 位大写字母 + 数字),不可自定义长度与分段。
+        样例预览: <span class="code" id="genPreview">BASE-A1B2-C3D4-E5F6-G7H8</span>
+      </div>
+
+      <!-- 生成结果(初始隐藏) -->
+      <div id="genResultBox" style="display:none;margin-top:16px;">
+        <div class="flex-between" style="margin-bottom:8px;">
+          <div style="font-size:13px;color:var(--text);">
+            ✅ 已生成 <b id="genResultCount" style="color:var(--primary);">0</b> 条卡密 ·
+            <span class="muted">一行一个,可直接粘贴到卡网后台</span>
+          </div>
+          <div class="row">
+            <button class="btn btn-sm" onclick="copyGenResult()">📋 一键复制全部</button>
+            <button class="btn btn-sm" onclick="downloadGenResult()">📥 下载 .txt</button>
+          </div>
+        </div>
+        <textarea class="textarea" id="genResultText" readonly style="min-height:220px;background:#fafbff;"></textarea>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal('cdkGenModal')">关闭</button>
+      <button class="btn btn-primary" onclick="doGenerate()">立即生成</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Modal: CDK 导出 ============ -->
+<div class="modal-mask" id="cdkExportModal">
+  <div class="modal">
+    <div class="m-head"><h3>导出卡密</h3><button class="close" onclick="closeModal('cdkExportModal')">×</button></div>
+    <div class="m-body">
+      <div class="field"><label class="lbl">导出范围</label>
+        <select class="select"><option>当前筛选条件</option><option>仅未使用</option><option>仅已使用</option></select>
+      </div>
+      <div class="field"><label class="lbl">导出格式</label>
+        <select class="select"><option>.txt(一行一个)</option><option>.csv</option></select>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal('cdkExportModal')">取消</button>
+      <button class="btn btn-primary">下载</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">已保存</div>
+
+<script>
+  const links = document.querySelectorAll('.nav-link');
+  const pages = document.querySelectorAll('.ppage');
+  const crumb = document.getElementById('crumb');
+  const titleMap = {
+    'dashboard':'仪表盘','products':'商品管理','stock':'库存管理',
+    'cdk':'卡密管理','redeem-log':'兑换记录',
+    'settings':'站点设置','logs':'操作日志','docs':'使用文档'
+  };
+  let products = [];
+  let productEditId = null;
+
+  async function api(path, options = {}){
+    const res = await fetch(path, {
+      headers: {'Content-Type': 'application/json', ...(options.headers || {})},
+      ...options
+    });
+    const data = await res.json();
+    if(data.code !== 0){
+      if(data.code === 2001) location.href = 'login.html';
+      throw new Error(data.msg || '请求失败');
+    }
+    return data.data;
+  }
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 1600);
+  }
+  function page(name){ return document.querySelector(`.ppage[data-page="${name}"]`); }
+  function tbody(name){ return page(name).querySelector('tbody'); }
+  function stockCells(filled){
+    let cls = '';
+    if(filled >= 4) cls = 'high';
+    else if(filled === 3) cls = 'mid';
+    else if(filled === 2) cls = 'low';
+    else if(filled === 1) cls = 'crit';
+    let html = '<span class="stockcell">';
+    for(let i=0;i<5;i++) html += `<i class="${i < filled ? cls : ''}"></i>`;
+    return html + '</span>';
+  }
+  function badge(label, cls){ return `<span class="badge ${cls}">${label}</span>`; }
+  function productStatus(p){
+    if(+p.status === 0) return badge('下架','badge-gray');
+    if(+p.stock === 0) return badge('售罄','badge-gray');
+    if(+p.stock_filled <= 3) return badge('库存低','badge-yellow');
+    return badge('上架','badge-green');
+  }
+  function cdkStatus(s){
+    return {
+      0: badge('未使用','badge-blue'),
+      1: badge('已使用','badge-green'),
+      2: badge('已禁用','badge-red'),
+      3: badge('已过期','badge-yellow')
+    }[+s] || badge('未知','badge-gray');
+  }
+  function logResult(s){
+    return {
+      1: badge('成功','badge-green'),
+      2: badge('卡密无效','badge-red'),
+      3: badge('已使用','badge-yellow'),
+      4: badge('已过期/禁用','badge-yellow'),
+      5: badge('库存不足','badge-red'),
+      6: badge('限流','badge-red')
+    }[+s] || badge('失败','badge-red');
+  }
+
+  links.forEach(a=>{
+    a.addEventListener('click', e=>{
+      e.preventDefault();
+      links.forEach(x=>x.classList.remove('active'));
+      a.classList.add('active');
+      const p = a.dataset.page;
+      pages.forEach(x=>x.classList.toggle('active', x.dataset.page === p));
+      crumb.textContent = titleMap[p];
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+  document.querySelectorAll('.ptabs').forEach(group=>{
+    group.querySelectorAll('div').forEach(t=>{
+      t.addEventListener('click',()=> {
+        group.querySelectorAll('div').forEach(x=>x.classList.remove('active'));
+        t.classList.add('active');
+      });
+    });
+  });
+
+  function openModal(id){
+    if(id === 'cdkGenModal') resetGenResult();
+    document.getElementById(id).classList.add('show');
+  }
+  function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+  document.querySelectorAll('.modal-mask').forEach(m=>{
+    m.addEventListener('click', e=>{ if(e.target===m) m.classList.remove('show'); });
+  });
+
+  const ta = document.getElementById('stockTextarea');
+  const lineCount = document.getElementById('lineCount');
+  if(ta && lineCount){
+    ta.addEventListener('input', ()=>{
+      lineCount.textContent = ta.value.split('\n').filter(s=>s.trim().length>0).length;
+    });
+  }
+
+  function rand4(){
+    const c='ABCDEFGHJKMNPQRSTVWXYZ23456789';
+    let s=''; for(let i=0;i<4;i++) s+=c[Math.floor(Math.random()*c.length)];
+    return s;
+  }
+  function makeCdk(prefix){ return `${prefix}-${rand4()}-${rand4()}-${rand4()}-${rand4()}`; }
+  const genProduct = document.getElementById('genProduct');
+  const genPreview = document.getElementById('genPreview');
+  function refreshPreview(){
+    const opt = genProduct.options[genProduct.selectedIndex];
+    const prefix = opt?.dataset.prefix || 'BASE';
+    genPreview.textContent = makeCdk(prefix);
+  }
+  genProduct.addEventListener('change', refreshPreview);
+
+  async function loadDashboard(){
+    const s = await api('/admin/dashboard/summary');
+    const nums = page('dashboard').querySelectorAll('.grid-6 .num');
+    [s.products, s.inventory, s.cdks, s.unused_cdks, s.today_redeem, s.query_24h].forEach((v,i)=>{
+      if(nums[i]) nums[i].textContent = Number(v || 0).toLocaleString();
+    });
+  }
+  async function loadProducts(){
+    products = await api('/admin/products');
+    const body = tbody('products');
+    body.innerHTML = '';
+    products.forEach(p=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>#${String(p.id).padStart(3,'0')}</td>
+        <td>${escapeHtml(p.name)}</td>
+        <td class="code">${escapeHtml(p.cdk_prefix)}</td>
+        <td>${Number(p.stock || 0).toLocaleString()}</td>
+        <td>${escapeHtml(p.full_threshold)}</td>
+        <td>${stockCells(+p.stock_filled || 0)}</td>
+        <td>${productStatus(p)}</td>
+        <td class="ops"><a data-edit-product="${p.id}">编辑</a><a data-stock-product="${p.id}">库存</a><a data-gen-product="${p.id}">生成卡密</a><a class="danger" data-del-product="${p.id}">删除</a></td>
+      `;
+      body.appendChild(tr);
+    });
+    fillProductSelects();
+  }
+  function fillProductSelects(){
+    const options = products.map(p=>`<option value="${p.id}" data-prefix="${escapeHtml(p.cdk_prefix)}">${escapeHtml(p.name)} (#${String(p.id).padStart(3,'0')}) · 前缀 ${escapeHtml(p.cdk_prefix)}</option>`).join('');
+    genProduct.innerHTML = options;
+    page('stock').querySelector('select').innerHTML = products.map(p=>`<option value="${p.id}">${escapeHtml(p.name)} (#${String(p.id).padStart(3,'0')})</option>`).join('');
+    refreshPreview();
+  }
+  function productFields(){
+    const modal = document.getElementById('productModal');
+    return {
+      modal,
+      inputs: modal.querySelectorAll('.input'),
+      textareas: modal.querySelectorAll('.textarea')
+    };
+  }
+  function openProductModal(id){
+    const {modal, inputs, textareas} = productFields();
+    productEditId = id || null;
+    inputs[0].value = '';
+    inputs[1].value = '';
+    inputs[2].value = 100;
+    textareas[0].value = '';
+    textareas[1].value = '';
+    if(productEditId){
+      const p = products.find(x => +x.id === +productEditId);
+      if(p){
+        inputs[0].value = p.name || '';
+        inputs[1].value = p.cdk_prefix || '';
+        inputs[2].value = p.full_threshold || 100;
+        textareas[0].value = p.intro || '';
+        textareas[1].value = p.usage_text || '';
+      }
+    }
+    modal.classList.add('show');
+  }
+  async function saveProduct(){
+    const {modal, inputs, textareas} = productFields();
+    const payload = {
+      name: inputs[0].value.trim(),
+      cdk_prefix: inputs[1].value.trim().toUpperCase(),
+      full_threshold: +inputs[2].value || 100,
+      intro: textareas[0].value,
+      usage_text: textareas[1].value
+    };
+    await api(productEditId ? `/admin/products/${productEditId}` : '/admin/products', {
+      method: productEditId ? 'PUT' : 'POST',
+      body: JSON.stringify({
+        ...payload
+      })
+    });
+    closeModal('productModal');
+    productEditId = null;
+    modal.querySelectorAll('input,textarea').forEach(x=>{ if(!x.type || x.type !== 'number') x.value=''; });
+    await loadAll();
+    showToast('商品已保存');
+  }
+  document.querySelector('#productModal .btn-primary').addEventListener('click', saveProduct);
+  tbody('products').addEventListener('click', async e=>{
+    const edit = e.target.closest('[data-edit-product]');
+    if(edit){ openProductModal(+edit.dataset.editProduct); return; }
+    const stock = e.target.closest('[data-stock-product]');
+    if(stock){
+      document.querySelector('.nav-link[data-page="stock"]').click();
+      const sel = page('stock').querySelector('select');
+      sel.value = stock.dataset.stockProduct;
+      await loadInventory();
+      return;
+    }
+    const gen = e.target.closest('[data-gen-product]');
+    if(gen){
+      genProduct.value = gen.dataset.genProduct;
+      refreshPreview();
+      openModal('cdkGenModal');
+      return;
+    }
+    const del = e.target.closest('[data-del-product]');
+    if(del){
+      const p = products.find(x => +x.id === +del.dataset.delProduct);
+      if(!confirm(`确定删除商品「${p ? p.name : del.dataset.delProduct}」? 相关库存和卡密也会删除。`)) return;
+      await api(`/admin/products/${del.dataset.delProduct}`, {method:'DELETE'});
+      await loadAll();
+      showToast('商品已删除');
+    }
+  });
+
+  async function loadInventory(){
+    const productId = page('stock').querySelector('select').value || (products[0]?.id || 0);
+    if(!productId){
+      tbody('stock').innerHTML = '';
+      return;
+    }
+    const list = await api(`/admin/inventory?product_id=${productId}`);
+    const body = tbody('stock');
+    body.innerHTML = '';
+    list.forEach((it, i)=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="checkbox" value="${it.id}" /></td>
+        <td>${i + 1}</td>
+        <td class="code">${escapeHtml(it.content)}</td>
+        <td class="muted">${escapeHtml((it.created_at || '').slice(5,16))}</td>
+        <td>${+it.status === 0 ? badge('未发货','badge-blue') : badge('已发货','badge-green')}</td>
+        <td class="ops"><a>查看</a><a class="danger" data-del-inv="${it.id}">删除</a></td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+  async function importInventory(){
+    const stockPage = page('stock');
+    const selects = stockPage.querySelectorAll('select');
+    if(!selects[0].value){ showToast('请先新增商品'); return; }
+    const modes = ['append', 'overwrite', 'dedupe'];
+    const data = await api('/admin/inventory/import', {
+      method:'POST',
+      body: JSON.stringify({
+        product_id: +selects[0].value,
+        mode: modes[selects[1].selectedIndex] || 'append',
+        contents: ta.value
+      })
+    });
+    ta.value = ''; lineCount.textContent = '0';
+    await loadAll();
+    showToast(`已导入 ${data.count} 条库存`);
+  }
+  page('stock').querySelectorAll('.btn-primary')[0].addEventListener('click', importInventory);
+  page('stock').querySelector('select').addEventListener('change', loadInventory);
+  tbody('stock').addEventListener('click', async e=>{
+    const a = e.target.closest('[data-del-inv]');
+    if(!a) return;
+    await api(`/admin/inventory/${a.dataset.delInv}`, {method:'DELETE'});
+    await loadAll();
+    showToast('库存已删除');
+  });
+
+  async function loadCdks(){
+    const list = await api('/admin/cdks');
+    const body = tbody('cdk');
+    body.innerHTML = '';
+    list.forEach(it=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="checkbox" value="${it.id}" /></td>
+        <td class="code">${escapeHtml(it.code)}</td>
+        <td>${escapeHtml(it.product_name)}</td>
+        <td>${cdkStatus(it.status)}</td>
+        <td class="muted">${escapeHtml((it.generated_at || '').slice(5,16))}</td>
+        <td class="muted">${escapeHtml(it.used_at ? it.used_at.slice(5,16) : '—')}</td>
+        <td class="muted">${escapeHtml(it.remark || '—')}</td>
+        <td class="ops"><a>详情</a><a data-copy="${escapeHtml(it.code)}">复制</a>${+it.status === 0 ? '<a class="danger" data-disable-cdk="'+it.id+'">禁用</a>' : ''}</td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+  tbody('cdk').addEventListener('click', async e=>{
+    const copy = e.target.closest('[data-copy]');
+    if(copy){ navigator.clipboard.writeText(copy.dataset.copy); showToast('已复制卡密'); return; }
+    const dis = e.target.closest('[data-disable-cdk]');
+    if(dis){
+      await api('/admin/cdks/disable', {method:'POST', body:JSON.stringify({ids:[+dis.dataset.disableCdk]})});
+      await loadAll();
+      showToast('卡密已禁用');
+    }
+  });
+  page('cdk').querySelector('.btn-danger').addEventListener('click', async ()=>{
+    const ids = [...tbody('cdk').querySelectorAll('input[type="checkbox"]:checked')].map(x=>+x.value);
+    if(!ids.length){ showToast('请选择卡密'); return; }
+    await api('/admin/cdks/disable', {method:'POST', body:JSON.stringify({ids})});
+    await loadAll();
+    showToast('已批量禁用');
+  });
+
+  async function doGenerate(){
+    const opt = genProduct.options[genProduct.selectedIndex];
+    if(!opt){ showToast('请先新增商品'); return; }
+    const count = Math.max(1, Math.min(100000, +document.getElementById('genCount').value || 0));
+    const days = Math.max(0, +document.getElementById('genDays').value || 0);
+    const remark = document.querySelector('#cdkGenModal input[placeholder^="如:"]').value;
+    const data = await api('/admin/cdks/generate', {
+      method:'POST',
+      body: JSON.stringify({product_id:+opt.value, count, valid_days:days, remark})
+    });
+    document.getElementById('genResultText').value = data.codes.join('\n');
+    document.getElementById('genResultCount').textContent = data.count;
+    document.getElementById('genResultBox').style.display = 'block';
+    await loadAll();
+    showToast(`已生成 ${data.count} 条卡密`);
+  }
+  function copyGenResult(){
+    const ta = document.getElementById('genResultText');
+    ta.select(); ta.setSelectionRange(0, 999999);
+    navigator.clipboard.writeText(ta.value).then(()=> showToast('已复制全部卡密到剪贴板'));
+  }
+  function downloadGenResult(){
+    const opt = genProduct.options[genProduct.selectedIndex];
+    const prefix = opt?.dataset.prefix || 'CDK';
+    const blob = new Blob([document.getElementById('genResultText').value], {type:'text/plain;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${prefix}_${new Date().toISOString().slice(0,10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+  function resetGenResult(){
+    document.getElementById('genResultText').value = '';
+    document.getElementById('genResultBox').style.display = 'none';
+  }
+
+  async function loadRedeemLogs(){
+    const list = await api('/admin/redeem-logs');
+    const body = tbody('redeem-log');
+    body.innerHTML = '';
+    list.forEach(it=>{
+      const type = +it.type === 1 ? badge('兑换','badge-blue') : badge('查询','badge-gray');
+      body.innerHTML += `<tr><td class="muted">${escapeHtml((it.created_at || '').slice(5))}</td><td>${type}</td><td class="code">${escapeHtml(it.cdk_code || '—')}</td><td>${escapeHtml(it.product_name || '—')}</td><td>${escapeHtml(it.ip || '')}</td><td>${logResult(it.result)}</td></tr>`;
+    });
+  }
+  async function loadAdminLogs(){
+    const list = await api('/admin/admin-logs');
+    const body = tbody('logs');
+    body.innerHTML = '';
+    list.forEach(it=>{
+      body.innerHTML += `<tr><td class="muted">${escapeHtml((it.created_at || '').slice(5,16))}</td><td>${escapeHtml(it.username || 'admin')}</td><td>${escapeHtml(it.action)}</td><td>${escapeHtml(it.target || '')}</td><td>${escapeHtml(it.ip || '')}</td></tr>`;
+    });
+  }
+  async function loadSettings(){
+    const s = await api('/admin/settings');
+    const box = page('settings');
+    const inputs = box.querySelectorAll('.input');
+    inputs[0].value = s.site_name || '';
+    inputs[1].value = s.query_max || 50;
+    inputs[2].value = s.redeem_throttle_seconds || 3;
+    inputs[3].value = s.redeem_fail_text || '';
+    inputs[4].value = s.frontend_history_keep || 200;
+    box.querySelector('select').selectedIndex = String(s.frontend_stock_visible) === '0' ? 1 : 0;
+    box.querySelector('.textarea').value = s.announcement || '';
+  }
+  page('settings').querySelector('.flex-between .btn-primary').addEventListener('click', async ()=>{
+    const box = page('settings');
+    const inputs = box.querySelectorAll('.input');
+    await api('/admin/settings', {
+      method:'PUT',
+      body: JSON.stringify({
+        site_name: inputs[0].value,
+        query_max: inputs[1].value,
+        redeem_throttle_seconds: inputs[2].value,
+        redeem_fail_text: inputs[3].value,
+        frontend_history_keep: inputs[4].value,
+        frontend_stock_visible: box.querySelector('select').selectedIndex === 0 ? 1 : 0,
+        announcement: box.querySelector('.textarea').value
+      })
+    });
+    showToast('设置已保存');
+  });
+  page('settings').querySelectorAll('.card-block')[1].querySelector('.btn-primary').addEventListener('click', async ()=>{
+    const inputs = page('settings').querySelectorAll('.card-block')[1].querySelectorAll('.input');
+    await api('/admin/password', {method:'PUT', body:JSON.stringify({
+      old_password: inputs[0].value,
+      new_password: inputs[1].value,
+      confirm_password: inputs[2].value
+    })});
+    inputs.forEach(x=>x.value='');
+    showToast('密码已更新');
+  });
+
+  async function logout(){
+    try{ await api('/admin/logout', {method:'POST'}); }catch(e){}
+    location.href = 'login.html';
+  }
+  async function loadAll(){
+    await loadDashboard();
+    await loadProducts();
+    await loadInventory();
+    await loadCdks();
+    await loadRedeemLogs();
+    await loadAdminLogs();
+    await loadSettings();
+  }
+  async function init(){
+    try{
+      const me = await api('/admin/me');
+      document.querySelector('.side-foot b').textContent = me.username;
+      await loadAll();
+    }catch(err){
+      if(!String(location.pathname).endsWith('login.html')) location.href = 'login.html';
+    }
+  }
+  init();
+</script>
+</body>
+</html>

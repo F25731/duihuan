@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CDK 兑换</title>
+<style>
+  :root{
+    --bg:#f6f5fc;
+    --bg-soft:#f1edfb;
+    --card:#ffffff;
+    --border:#ebe7f5;
+    --border-strong:#dcd6ec;
+    --text:#1f2937;
+    --text-soft:#6b6b7e;
+    --text-mute:#9a98ad;
+    --primary:#6c5ce7;
+    --primary-hover:#5b4dd6;
+    --primary-soft:#ede9fe;
+    --primary-grad-1:#7d83e8;
+    --primary-grad-2:#8166d8;
+    --success:#10b981;
+    --success-soft:#ecfdf5;
+    --success-border:#a7f3d0;
+    --warn:#f59e0b;
+    --warn-soft:#fffbeb;
+    --warn-border:#fde68a;
+    --danger:#ef4444;
+    --danger-soft:#fef2f2;
+    --info:#0ea5e9;
+    --info-soft:#f0f9ff;
+    --shadow:0 10px 30px rgba(76,55,168,.10);
+    --shadow-lg:0 24px 60px rgba(60,40,160,.18);
+    --radius:16px;
+    --radius-sm:12px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;color:var(--text);font-family:"PingFang SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased;min-height:100%;}
+  body{
+    background:
+      radial-gradient(circle 280px at 5% 14%, rgba(255,255,255,.16) 0%, rgba(255,255,255,.16) 70%, transparent 72%),
+      radial-gradient(circle 220px at 92% 68%, rgba(255,255,255,.12) 0%, rgba(255,255,255,.12) 70%, transparent 72%),
+      radial-gradient(circle 150px at 96% 90%, rgba(255,255,255,.10) 0%, rgba(255,255,255,.10) 70%, transparent 72%),
+      radial-gradient(circle 180px at 50% 100%, rgba(255,255,255,.06) 0%, transparent 70%),
+      linear-gradient(135deg, #6e5fda 0%, #8068e0 55%, #7d6ce3 100%);
+    background-attachment: fixed;
+    min-height:100vh;
+  }
+  button{font-family:inherit;cursor:pointer;}
+
+  /* ===== Layout ===== */
+  .page{
+    max-width:760px;margin:0 auto;padding:60px 20px 60px;
+  }
+  .float-stock{
+    position:fixed;right:24px;top:60px;width:260px;z-index:10;
+  }
+  @media (max-width:1180px){
+    .float-stock{position:static;width:auto;margin:24px auto 0;max-width:760px;}
+  }
+
+  /* ===== Card ===== */
+  .card{
+    background:var(--card);border:1px solid var(--border);
+    border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:24px;
+  }
+  .card + .card{margin-top:18px;}
+
+  /* ===== Tabs ===== */
+  .tabs{
+    display:flex;background:var(--bg-soft);
+    border:1px solid var(--border);border-radius:12px;padding:6px;gap:6px;
+    margin-bottom:18px;
+  }
+  .tab{
+    flex:1;text-align:center;padding:12px 18px;
+    border-radius:8px;font-weight:600;color:var(--text-soft);
+    cursor:pointer;transition:.15s;font-size:15px;user-select:none;
+  }
+  .tab.active{background:#fff;color:var(--primary);box-shadow:0 1px 2px rgba(0,0,0,.04);}
+  .tab:hover:not(.active){color:var(--text);}
+
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  /* ===== Form ===== */
+  .field{margin-bottom:16px;}
+  .label{display:block;font-size:13px;color:var(--text-soft);margin-bottom:6px;}
+  .input,.textarea{
+    width:100%;padding:13px 14px;border:1px solid var(--border-strong);
+    border-radius:var(--radius-sm);font-size:14px;color:var(--text);
+    background:#fff;transition:.15s;font-family:inherit;outline:none;
+  }
+  .input:focus,.textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.12);}
+  .textarea{min-height:140px;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.55;}
+
+  .hint{font-size:12px;color:var(--text-mute);margin-top:6px;display:flex;justify-content:space-between;}
+
+  /* ===== Buttons ===== */
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    padding:12px 18px;border-radius:10px;font-size:15px;font-weight:600;
+    border:1px solid transparent;transition:.15s;
+  }
+  .btn-primary{
+    background:linear-gradient(90deg, var(--primary-grad-1) 0%, var(--primary-grad-2) 100%);
+    color:#fff;border:none;width:100%;padding:14px;font-size:15px;
+    box-shadow:0 8px 22px rgba(108,92,231,.30);
+    letter-spacing:4px;
+  }
+  .btn-primary:hover{
+    background:linear-gradient(90deg, #6b71dc 0%, #7050c7 100%);
+    box-shadow:0 10px 26px rgba(108,92,231,.38);
+  }
+  .btn-sm{padding:6px 12px;font-size:13px;border-radius:8px;}
+  .btn-ghost{background:#fff;border-color:var(--border-strong);color:var(--text);}
+  .btn-ghost:hover{border-color:var(--primary);color:var(--primary);}
+  .btn-blue-soft{
+    background:linear-gradient(90deg, var(--primary-grad-1) 0%, var(--primary-grad-2) 100%);
+    color:#fff;border:none;border-radius:8px;
+    box-shadow:0 4px 12px rgba(108,92,231,.25);
+  }
+  .btn-blue-soft:hover{background:linear-gradient(90deg, #6b71dc 0%, #7050c7 100%);}
+
+  /* ===== Alerts ===== */
+  .alert{
+    border:1px solid var(--border);border-radius:var(--radius-sm);
+    padding:14px 16px;font-size:14px;line-height:1.6;
+  }
+  .alert-warn{background:var(--warn-soft);border-color:var(--warn-border);color:#92400e;}
+  .alert-info{background:var(--info-soft);border-color:#bae6fd;color:#075985;}
+  .alert-title{font-weight:700;display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+
+  /* ===== Success block ===== */
+  .success-block{
+    background:var(--success-soft);border:1px solid var(--success-border);
+    border-radius:var(--radius);padding:18px;
+  }
+  .success-head{display:flex;align-items:center;gap:10px;color:#047857;font-weight:700;font-size:16px;margin-bottom:14px;}
+  .success-head .check{
+    width:24px;height:24px;border-radius:50%;background:#10b981;color:#fff;
+    display:grid;place-items:center;font-size:14px;font-weight:800;
+  }
+  .intro{
+    background:#fff;border:1px solid var(--border);border-radius:10px;
+    padding:12px 14px;font-size:13px;color:var(--text-soft);line-height:1.65;
+    margin-bottom:10px;
+  }
+  .intro b{color:var(--text);}
+
+  .delivery{
+    background:#fff;border:1px solid var(--border);border-radius:10px;
+    padding:12px 14px;margin-top:10px;
+  }
+  .delivery-label{font-size:12px;color:var(--text-mute);margin-bottom:6px;}
+  .delivery-row{display:flex;align-items:center;gap:10px;}
+  .delivery-value{
+    flex:1;font-family:ui-monospace,Menlo,Consolas,monospace;
+    background:var(--bg);border:1px dashed var(--border-strong);
+    padding:10px 12px;border-radius:8px;font-size:13px;
+    word-break:break-all;overflow-wrap:anywhere;max-height:140px;overflow:auto;
+    line-height:1.55;
+  }
+  .meta-row{display:flex;justify-content:space-between;font-size:12px;color:var(--text-soft);margin-top:10px;}
+
+  /* ===== Query result ===== */
+  .result-list{display:flex;flex-direction:column;gap:10px;margin-top:16px;}
+  .result-item{
+    border:1px solid var(--border);border-radius:10px;padding:12px 14px;
+    display:flex;justify-content:space-between;align-items:center;gap:12px;
+    background:#fff;
+  }
+  .result-item .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:var(--text);word-break:break-all;}
+  .badge{padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;}
+  .badge-unused{background:var(--primary-soft);color:var(--primary);}
+  .badge-used{background:#f3f4f6;color:#6b7280;}
+  .badge-invalid{background:var(--danger-soft);color:var(--danger);}
+
+  /* ===== History ===== */
+  .history-head{
+    display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;
+  }
+  .history-head h3{margin:0;font-size:15px;}
+  .history-head .clear{font-size:12px;color:var(--text-mute);cursor:pointer;}
+  .history-head .clear:hover{color:var(--danger);}
+  .table{width:100%;border-collapse:collapse;font-size:13px;}
+  .table th,.table td{
+    text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);
+    color:var(--text);vertical-align:middle;
+  }
+  .table th{background:#f9fafb;color:var(--text-soft);font-weight:600;font-size:12px;}
+  .table tbody tr:hover{background:#fafbff;}
+  .table .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--text-soft);}
+  .table .detail{color:var(--primary);cursor:pointer;font-size:13px;}
+  .empty-state{
+    padding:32px 12px;text-align:center;color:var(--text-mute);font-size:13px;
+  }
+
+  /* ===== Stock side panel ===== */
+  .stock-card{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:18px 18px 14px;
+  }
+  .stock-card h4{margin:0 0 6px;font-size:14px;color:var(--text);}
+  .stock-card .sub{font-size:11px;color:var(--text-mute);margin-bottom:14px;}
+  .cat-title{
+    font-size:11px;color:var(--text-mute);font-weight:600;letter-spacing:2px;
+    margin:14px 0 6px;padding-left:2px;
+  }
+  .cat-title:first-of-type{margin-top:0;}
+  .stock-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:7px 0;font-size:13px;color:var(--text);
+  }
+  .stock-row .name{flex:1;}
+  .grid{
+    display:flex;gap:3px;
+  }
+  .grid i{
+    display:block;width:11px;height:14px;border-radius:2px;background:#e5e7eb;
+  }
+  .grid i.high{background:#10b981;}
+  .grid i.mid{background:#f59e0b;}
+  .grid i.low{background:#f87171;}
+  .grid i.crit{background:#ef4444;}
+
+  .stock-legend{
+    display:flex;gap:14px;justify-content:center;flex-wrap:wrap;
+    margin-top:12px;padding-top:10px;border-top:1px dashed var(--border);
+    font-size:11px;color:var(--text-mute);
+  }
+  .stock-legend span{display:flex;align-items:center;gap:4px;}
+  .stock-legend i{width:10px;height:10px;border-radius:2px;display:inline-block;}
+
+  /* ===== Modal ===== */
+  .modal-mask{
+    position:fixed;inset:0;background:rgba(15,23,42,.45);
+    display:none;align-items:center;justify-content:center;z-index:100;padding:16px;
+  }
+  .modal-mask.show{display:flex;}
+  .modal{
+    background:#fff;border-radius:14px;width:580px;max-width:100%;
+    box-shadow:var(--shadow-lg);overflow:hidden;
+  }
+  .m-head{
+    padding:16px 20px;border-bottom:1px solid var(--border);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .m-head h3{margin:0;font-size:16px;}
+  .m-body{padding:20px;max-height:64vh;overflow:auto;}
+  .m-foot{padding:14px 20px;border-top:1px solid var(--border);text-align:right;background:#fafbff;}
+  .close{color:var(--text-mute);font-size:20px;cursor:pointer;background:none;border:none;}
+
+  /* ===== Toast ===== */
+  .toast{
+    position:fixed;left:50%;bottom:32px;transform:translateX(-50%) translateY(20px);
+    background:#111827;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;
+    opacity:0;pointer-events:none;transition:.25s;z-index:200;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- 中央卡密框 -->
+  <div class="card">
+    <div class="tabs" role="tablist">
+      <div class="tab active" data-tab="redeem">CDK 兑换</div>
+      <div class="tab" data-tab="query">CDK 查询</div>
+    </div>
+
+    <!-- 兑换 -->
+    <div class="panel active" id="panel-redeem">
+      <div class="field">
+        <label class="label">兑换卡密</label>
+        <input class="input" id="cdkInput" placeholder="请输入卡密(单次仅支持兑换一个)" />
+        <div class="hint">
+          <span>* 兑换后不可撤销,请妥善保管交付内容</span>
+          <span id="cdkCount">0 字符</span>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="redeemBtn">兑换卡密</button>
+
+      <!-- 成功后内容(默认作为 UI 示例显示一个) -->
+      <div style="margin-top:22px;" id="redeemResult">
+        <div class="success-block">
+          <div class="success-head">
+            <span class="check">✓</span>
+            兑换成功 · 基础成品号
+          </div>
+
+          <div class="intro">
+            <b>商品简介:</b> 长期稳定的基础账号,适合日常轻度使用,首次登录请立即更换密码并绑定二次验证。
+          </div>
+          <div class="intro">
+            <b>使用说明:</b><br />
+            1. 复制下方账号与密码;<br />
+            2. 打开客户端登录;<br />
+            3. 登录成功后请立即修改资料,避免共享导致封号;<br />
+            4. 兑换内容仅保存在你的浏览器,刷新前请保存。
+          </div>
+
+          <div class="delivery">
+            <div class="delivery-label">商品内容</div>
+            <div class="delivery-row">
+              <div class="delivery-value" id="deliveryDemoText">tbqqhwlz79104@hotmail.com----Aa123456!Qwerty----eyJhbGciOiJIUzI1NiJ9.veryLongTokenExampleHere.signature</div>
+              <button class="btn btn-sm btn-blue-soft" data-copy-target="#deliveryDemoText">复制</button>
+            </div>
+          </div>
+
+          <div class="meta-row">
+            <span>已自动保存到本机兑换记录</span>
+            <span>兑换时间: 2026-05-22 14:36</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 查询 -->
+    <div class="panel" id="panel-query">
+      <div class="field">
+        <label class="label">卡密查询(每行一个,单次最多 50 条)</label>
+        <textarea class="textarea" id="cdkBatch" placeholder="例如:&#10;BASE-A1B2-C3D4-E5F6-G7H8&#10;BASE-9X8Y-7Z6W-5V4U-3T2S"></textarea>
+        <div class="hint">
+          <span>* 查询仅检测卡密状态,不会消耗任何卡密</span>
+          <span id="batchCount">0 / 50</span>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="queryBtn">批量查询</button>
+
+      <div class="result-list" id="queryResults">
+        <div class="result-item">
+          <span class="code">BASE-A1B2-C3D4-E5F6-G7H8</span>
+          <span class="badge badge-unused">未使用 · 可用</span>
+        </div>
+        <div class="result-item">
+          <span class="code">BASE-9X8Y-7Z6W-5V4U-3T2S</span>
+          <span class="badge badge-used">已使用</span>
+        </div>
+        <div class="result-item">
+          <span class="code">BASE-XXXX-YYYY-ZZZZ-WWWW</span>
+          <span class="badge badge-invalid">无效</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 兑换历史(localStorage) -->
+  <div class="card">
+    <div class="history-head">
+      <h3>我的兑换记录 <span style="color:var(--text-mute);font-size:12px;font-weight:400;">(仅保存在你本机浏览器)</span></h3>
+      <span class="clear" id="clearHistory">清空记录</span>
+    </div>
+    <table class="table" id="historyTable">
+      <thead>
+        <tr>
+          <th style="width:160px;">兑换时间</th>
+          <th>商品</th>
+          <th>卡密</th>
+          <th style="width:80px;text-align:right;">操作</th>
+        </tr>
+      </thead>
+      <tbody id="historyBody">
+        <!-- 默认空,JS 渲染 -->
+      </tbody>
+    </table>
+    <div class="empty-state" id="emptyState">暂无兑换记录,兑换成功后会自动保存到这里。</div>
+  </div>
+
+</div>
+
+<!-- 右侧悬浮库存 -->
+<aside class="float-stock">
+  <div class="stock-card">
+    <h4>实时库存</h4>
+    <div class="sub">每格代表库存档位,绿色充足、红色紧缺</div>
+
+    <div class="stock-row">
+      <span class="name">基础成品号</span>
+      <div class="grid" data-full="100" data-stock="1284"></div>
+    </div>
+    <div class="stock-row">
+      <span class="name">高级成品号</span>
+      <div class="grid" data-full="100" data-stock="326"></div>
+    </div>
+    <div class="stock-row">
+      <span class="name">Pro 订阅 · 月卡</span>
+      <div class="grid" data-full="100" data-stock="42"></div>
+    </div>
+    <div class="stock-row">
+      <span class="name">Pro 订阅 · 季卡</span>
+      <div class="grid" data-full="50" data-stock="6"></div>
+    </div>
+    <div class="stock-row">
+      <span class="name">独享号 · 限定</span>
+      <div class="grid" data-full="20" data-stock="0"></div>
+    </div>
+
+    <div class="stock-legend">
+      <span><i style="background:#10b981;"></i>充足</span>
+      <span><i style="background:#f59e0b;"></i>偏少</span>
+      <span><i style="background:#ef4444;"></i>紧缺</span>
+      <span><i style="background:#e5e7eb;"></i>空</span>
+    </div>
+  </div>
+</aside>
+
+<!-- 详情弹窗 -->
+<div class="modal-mask" id="detailModal">
+  <div class="modal">
+    <div class="m-head">
+      <h3>兑换详情</h3>
+      <button class="close" onclick="closeDetail()">×</button>
+    </div>
+    <div class="m-body" id="detailBody"></div>
+    <div class="m-foot">
+      <button class="btn btn-sm btn-ghost" onclick="closeDetail()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">已复制到剪贴板</div>
+
+<script>
+  const HISTORY_KEY = 'cdk_redeem_history_v1';
+  let historyKeep = 200;
+
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById('panel-' + t.dataset.tab).classList.add('active');
+    });
+  });
+
+  const cdkInput = document.getElementById('cdkInput');
+  const cdkCount = document.getElementById('cdkCount');
+  const cdkBatch = document.getElementById('cdkBatch');
+  const batchCount = document.getElementById('batchCount');
+  const redeemResult = document.getElementById('redeemResult');
+  const queryResults = document.getElementById('queryResults');
+  redeemResult.style.display = 'none';
+  queryResults.innerHTML = '';
+  queryResults.style.display = 'none';
+
+  cdkInput.addEventListener('input', () => {
+    cdkCount.textContent = cdkInput.value.length + ' 字符';
+  });
+  cdkBatch.addEventListener('input', () => {
+    const lines = getBatchLines();
+    batchCount.textContent = lines.length + ' / 50';
+    batchCount.style.color = lines.length > 50 ? 'var(--danger)' : '';
+    if(lines.length === 0){
+      queryResults.innerHTML = '';
+      queryResults.style.display = 'none';
+    }
+  });
+
+  async function api(path, options = {}){
+    const res = await fetch(path, {
+      headers: {'Content-Type': 'application/json', ...(options.headers || {})},
+      ...options
+    });
+    const data = await res.json();
+    if(data.code !== 0) throw new Error(data.msg || '请求失败');
+    return data.data;
+  }
+
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 1500);
+  }
+  document.body.addEventListener('click', e=>{
+    const b = e.target.closest('[data-copy], [data-copy-target]');
+    if(!b) return;
+    let text = b.dataset.copy;
+    if(!text && b.dataset.copyTarget){
+      const t = document.querySelector(b.dataset.copyTarget);
+      if(t) text = t.innerText || t.textContent || '';
+    }
+    if(!text) return;
+    navigator.clipboard.writeText(text);
+    showToast('已复制到剪贴板');
+  });
+
+  function renderGridByFilled(el, filled){
+    el.innerHTML = '';
+    let cls = '';
+    if(filled >= 4) cls = 'high';
+    else if(filled === 3) cls = 'mid';
+    else if(filled === 2) cls = 'low';
+    else if(filled === 1) cls = 'crit';
+    for(let i=0;i<5;i++){
+      const c = document.createElement('i');
+      if(i < filled) c.className = cls;
+      el.appendChild(c);
+    }
+  }
+  function renderStockRows(rows){
+    const host = document.querySelector('.stock-card');
+    host.querySelectorAll('.stock-row').forEach(x => x.remove());
+    const legend = host.querySelector('.stock-legend');
+    rows.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'stock-row';
+      row.innerHTML = `<span class="name">${escapeHtml(item.name)}</span><div class="grid"></div>`;
+      host.insertBefore(row, legend);
+      renderGridByFilled(row.querySelector('.grid'), +item.stock_filled || 0);
+    });
+  }
+  async function loadStocks(){
+    try{
+      const rows = await api('/api/stocks');
+      renderStockRows(rows);
+    }catch(err){
+      document.querySelectorAll('.grid').forEach(el => renderGridByFilled(el, 0));
+    }
+  }
+
+  function loadHistory(){
+    try{ return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }catch(e){ return []; }
+  }
+  function saveHistory(list){ localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); }
+  function pushHistory(item){
+    const list = loadHistory(); list.unshift(item);
+    if(list.length > historyKeep) list.length = historyKeep;
+    saveHistory(list); renderHistory();
+  }
+  function renderHistory(){
+    const list = loadHistory();
+    const body = document.getElementById('historyBody');
+    const empty = document.getElementById('emptyState');
+    const table = document.getElementById('historyTable');
+    body.innerHTML = '';
+    if(list.length === 0){ empty.style.display='block'; table.style.display='none'; return; }
+    empty.style.display='none'; table.style.display='';
+    list.forEach((it,i)=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(it.time)}</td>
+        <td>${escapeHtml(it.product)}</td>
+        <td class="code">${escapeHtml(it.cdk)}</td>
+        <td style="text-align:right;"><span class="detail" data-idx="${i}">详情</span></td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  document.getElementById('historyBody').addEventListener('click', e=>{
+    const d = e.target.closest('.detail'); if(!d) return;
+    const item = loadHistory()[+d.dataset.idx]; if(!item) return;
+    openDetail(item);
+  });
+  document.getElementById('clearHistory').addEventListener('click', ()=>{
+    if(confirm('确定清空所有本地兑换记录?该操作不可撤销。')){
+      saveHistory([]); renderHistory();
+    }
+  });
+
+  function openDetail(item){
+    const body = document.getElementById('detailBody');
+    body.innerHTML = `
+      <div class="intro"><b>商品:</b> ${escapeHtml(item.product)}</div>
+      <div class="intro"><b>兑换时间:</b> ${escapeHtml(item.time)}</div>
+      <div class="intro"><b>卡密:</b> <span style="font-family:ui-monospace,Menlo,Consolas,monospace;">${escapeHtml(item.cdk)}</span></div>
+      ${item.intro ? `<div class="intro"><b>商品简介:</b><br>${escapeHtml(item.intro).replace(/\n/g,'<br>')}</div>` : ''}
+      ${item.usage ? `<div class="intro"><b>使用说明:</b><br>${escapeHtml(item.usage).replace(/\n/g,'<br>')}</div>` : ''}
+      <div class="delivery">
+        <div class="delivery-label">商品内容</div>
+        <div class="delivery-row">
+          <div class="delivery-value" id="detailContentText">${escapeHtml(item.content)}</div>
+          <button class="btn btn-sm btn-blue-soft" data-copy-target="#detailContentText">复制</button>
+        </div>
+      </div>
+    `;
+    document.getElementById('detailModal').classList.add('show');
+  }
+  function closeDetail(){ document.getElementById('detailModal').classList.remove('show'); }
+  document.getElementById('detailModal').addEventListener('click', e=>{
+    if(e.target.id === 'detailModal') closeDetail();
+  });
+
+  function renderRedeemSuccess(item){
+    redeemResult.style.display = 'block';
+    redeemResult.innerHTML = `
+      <div class="success-block">
+        <div class="success-head"><span class="check">✓</span>兑换成功 · ${escapeHtml(item.product)}</div>
+        <div class="intro"><b>商品简介:</b> ${escapeHtml(item.intro || '')}</div>
+        <div class="intro"><b>使用说明:</b><br />${escapeHtml(item.usage || '').replace(/\n/g,'<br />')}</div>
+        <div class="delivery">
+          <div class="delivery-label">商品内容</div>
+          <div class="delivery-row">
+            <div class="delivery-value" id="deliveryLiveText">${escapeHtml(item.content)}</div>
+            <button class="btn btn-sm btn-blue-soft" data-copy-target="#deliveryLiveText">复制</button>
+          </div>
+        </div>
+        <div class="meta-row"><span>已自动保存到本机兑换记录</span><span>兑换时间: ${escapeHtml(item.time)}</span></div>
+      </div>
+    `;
+  }
+  document.getElementById('redeemBtn').addEventListener('click', async ()=>{
+    const v = cdkInput.value.trim().toUpperCase();
+    if(!v){ showToast('请输入卡密'); return; }
+    try{
+      const data = await api('/api/redeem', {method:'POST', body:JSON.stringify({cdk:v})});
+      const item = {
+        time: data.time,
+        product: data.product.name,
+        cdk: v,
+        intro: data.product.intro,
+        usage: data.product.usage_text,
+        content: data.content
+      };
+      pushHistory(item);
+      renderRedeemSuccess(item);
+      await loadStocks();
+      showToast('兑换成功');
+    }catch(err){
+      showToast(err.message || '兑换失败');
+    }
+  });
+
+  function getBatchLines(){
+    return cdkBatch.value.split('\n').map(s=>s.trim().toUpperCase()).filter(Boolean);
+  }
+  function queryBadge(status){
+    if(status === 'unused') return ['badge-unused', '未使用 · 可用'];
+    if(status === 'used') return ['badge-used', '已使用'];
+    if(status === 'expired') return ['badge-invalid', '已禁用 / 过期'];
+    return ['badge-invalid', '无效'];
+  }
+  document.getElementById('queryBtn').addEventListener('click', async ()=>{
+    const lines = getBatchLines();
+    if(lines.length === 0){ showToast('请输入要查询的卡密'); return; }
+    if(lines.length > 50){ showToast('单次最多 50 条'); return; }
+    try{
+      const data = await api('/api/query', {method:'POST', body:JSON.stringify({cdks:lines})});
+      const box = queryResults;
+      box.innerHTML = '';
+      data.forEach(it => {
+        const [cls, text] = queryBadge(it.status);
+        const row = document.createElement('div');
+        row.className = 'result-item';
+        row.innerHTML = `<span class="code">${escapeHtml(it.cdk)}</span><span class="badge ${cls}">${text}</span>`;
+        box.appendChild(row);
+      });
+      box.style.display = data.length ? 'flex' : 'none';
+      showToast('查询完成');
+    }catch(err){
+      showToast(err.message || '查询失败');
+    }
+  });
+
+  async function init(){
+    try{
+      const site = await api('/api/site');
+      historyKeep = Math.max(1, +(site.frontend_history_keep || 200));
+      if(String(site.frontend_stock_visible) === '0') document.querySelector('.float-stock').style.display = 'none';
+    }catch(e){}
+    renderHistory();
+    await loadStocks();
+  }
+  init();
+</script>
+</body>
+</html>
