@@ -137,9 +137,18 @@
     background:var(--success-soft);border:1px solid var(--success-border);
     border-radius:var(--radius);padding:18px;
   }
+  .failure-block{
+    background:var(--danger-soft);border:1px solid #fecaca;
+    border-radius:var(--radius);padding:18px;
+  }
   .success-head{display:flex;align-items:center;gap:10px;color:#047857;font-weight:700;font-size:16px;margin-bottom:14px;}
+  .failure-head{display:flex;align-items:center;gap:10px;color:#b91c1c;font-weight:700;font-size:16px;margin-bottom:0;}
   .success-head .check{
     width:24px;height:24px;border-radius:50%;background:#10b981;color:#fff;
+    display:grid;place-items:center;font-size:14px;font-weight:800;
+  }
+  .failure-head .cross{
+    width:24px;height:24px;border-radius:50%;background:#ef4444;color:#fff;
     display:grid;place-items:center;font-size:14px;font-weight:800;
   }
   .intro{
@@ -176,6 +185,12 @@
   .badge-unused{background:var(--primary-soft);color:var(--primary);}
   .badge-used{background:#f3f4f6;color:#6b7280;}
   .badge-invalid{background:var(--danger-soft);color:var(--danger);}
+  .status-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap;}
+  .status-pill .icon{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:12px;font-weight:900;}
+  .status-ok{background:var(--success-soft);color:#047857;}
+  .status-ok .icon{background:var(--success);}
+  .status-bad{background:var(--danger-soft);color:var(--danger);}
+  .status-bad .icon{background:var(--danger);}
 
   /* ===== History ===== */
   .history-head{
@@ -565,9 +580,17 @@
       </div>
     `;
   }
+  function renderRedeemFailure(message){
+    redeemResult.style.display = 'block';
+    redeemResult.innerHTML = `
+      <div class="failure-block">
+        <div class="failure-head"><span class="cross">×</span>${escapeHtml(message || '兑换失败')}</div>
+      </div>
+    `;
+  }
   document.getElementById('redeemBtn').addEventListener('click', async ()=>{
     const v = cdkInput.value.trim().toUpperCase();
-    if(!v){ showToast('请输入卡密'); return; }
+    if(!v){ renderRedeemFailure('请输入卡密'); return; }
     try{
       const data = await api('/api/redeem', {method:'POST', body:JSON.stringify({cdk:v})});
       const item = {
@@ -583,9 +606,8 @@
       cdkInput.value = '';
       cdkCount.textContent = '0 字符';
       await loadStocks();
-      showToast('兑换成功');
     }catch(err){
-      showToast(err.message || '兑换失败');
+      renderRedeemFailure(err.message || '兑换失败');
     }
   });
 
@@ -593,30 +615,37 @@
     return cdkBatch.value.split('\n').map(s=>s.trim().toUpperCase()).filter(Boolean);
   }
   function queryBadge(status){
-    if(status === 'unused') return ['badge-unused', '未使用 · 可用'];
-    if(status === 'used') return ['badge-used', '已使用'];
-    if(status === 'expired') return ['badge-invalid', '已禁用 / 过期'];
-    return ['badge-invalid', '无效'];
+    if(status === 'unused') return ['status-ok', '✓', '未使用 · 可用'];
+    if(status === 'used') return ['status-bad', '×', '已使用'];
+    if(status === 'expired') return ['status-bad', '×', '已禁用 / 过期'];
+    return ['status-bad', '×', '无效'];
+  }
+  function renderQueryMessage(message){
+    queryResults.innerHTML = `
+      <div class="failure-block">
+        <div class="failure-head"><span class="cross">×</span>${escapeHtml(message || '查询失败')}</div>
+      </div>
+    `;
+    queryResults.style.display = 'flex';
   }
   document.getElementById('queryBtn').addEventListener('click', async ()=>{
     const lines = getBatchLines();
-    if(lines.length === 0){ showToast('请输入要查询的卡密'); return; }
-    if(lines.length > 50){ showToast('单次最多 50 条'); return; }
+    if(lines.length === 0){ renderQueryMessage('请输入要查询的卡密'); return; }
+    if(lines.length > 50){ renderQueryMessage('单次最多 50 条'); return; }
     try{
       const data = await api('/api/query', {method:'POST', body:JSON.stringify({cdks:lines})});
       const box = queryResults;
       box.innerHTML = '';
       data.forEach(it => {
-        const [cls, text] = queryBadge(it.status);
+        const [cls, icon, text] = queryBadge(it.status);
         const row = document.createElement('div');
         row.className = 'result-item';
-        row.innerHTML = `<span class="code">${escapeHtml(it.cdk)}</span><span class="badge ${cls}">${text}</span>`;
+        row.innerHTML = `<span class="code">${escapeHtml(it.cdk)}</span><span class="status-pill ${cls}"><span class="icon">${icon}</span>${text}</span>`;
         box.appendChild(row);
       });
       box.style.display = data.length ? 'flex' : 'none';
-      showToast('查询完成');
     }catch(err){
-      showToast(err.message || '查询失败');
+      renderQueryMessage(err.message || '查询失败');
     }
   });
 
