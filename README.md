@@ -87,3 +87,5 @@ docker compose logs -f duihuan
 兑换时后端会先给卡密加 Redis 短锁，再从 Redis 商品库存队列 `LPOP` 一个库存 ID，最后进入 MySQL 事务二次确认卡密和库存状态后落库。
 
 后台导入、删除库存会同步刷新 Redis 队列。如果你手工改过 MySQL，可以登录后台后调用 `/admin/cache/rebuild` 重建全部商品库存队列。
+
+后台「站点设置」可以开启 IP 兑换限制。开启后同一个 IP 在设定秒数内只能发起一次兑换请求，默认提示词为 `当前IP兑换频繁`。

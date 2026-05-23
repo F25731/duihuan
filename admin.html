@@ -541,11 +541,15 @@
           <div class="grid grid-2">
             <div class="field"><label class="lbl">站点名称(仅后台/浏览器标题使用)</label><input class="input" /></div>
             <div class="field"><label class="lbl">单次查询上限</label><input class="input" /></div>
-            <div class="field"><label class="lbl">兑换防刷间隔(秒)</label><input class="input" /></div>
             <div class="field"><label class="lbl">兑换失败提示</label><input class="input" /></div>
+            <div class="field"><label class="lbl">IP 兑换限制</label>
+              <select class="select" id="ipLimitEnabled"><option value="1">开启</option><option value="0">关闭</option></select>
+            </div>
+            <div class="field"><label class="lbl">IP 限制时间(秒)</label><input class="input" /></div>
+            <div class="field"><label class="lbl">IP 频繁提示词</label><input class="input" /></div>
             <div class="field"><label class="lbl">前台保留兑换记录(条/客户端)</label><input class="input" /></div>
             <div class="field"><label class="lbl">前台是否显示实时库存</label>
-              <select class="select"><option>显示</option><option>隐藏</option></select>
+              <select class="select" id="stockVisible"><option value="1">显示</option><option value="0">隐藏</option></select>
             </div>
             <div class="field" style="grid-column:1/-1;"><label class="lbl">公告 / 顶部通知</label><textarea class="textarea" style="min-height:100px;"></textarea></div>
           </div>
@@ -1081,10 +1085,12 @@
     const inputs = box.querySelectorAll('.input');
     inputs[0].value = s.site_name || '';
     inputs[1].value = s.query_max || 50;
-    inputs[2].value = s.redeem_throttle_seconds || 3;
-    inputs[3].value = s.redeem_fail_text || '';
-    inputs[4].value = s.frontend_history_keep || 200;
-    box.querySelector('select').selectedIndex = String(s.frontend_stock_visible) === '0' ? 1 : 0;
+    inputs[2].value = s.redeem_fail_text || '';
+    inputs[3].value = s.ip_redeem_limit_seconds || 60;
+    inputs[4].value = s.ip_redeem_limit_text || '当前IP兑换频繁';
+    inputs[5].value = s.frontend_history_keep || 200;
+    document.getElementById('ipLimitEnabled').value = String(s.ip_redeem_limit_enabled) === '0' ? '0' : '1';
+    document.getElementById('stockVisible').value = String(s.frontend_stock_visible) === '0' ? '0' : '1';
     box.querySelector('.textarea').value = s.announcement || '';
   }
   page('settings').querySelector('.flex-between .btn-primary').addEventListener('click', async ()=>{
@@ -1095,10 +1101,12 @@
       body: JSON.stringify({
         site_name: inputs[0].value,
         query_max: inputs[1].value,
-        redeem_throttle_seconds: inputs[2].value,
-        redeem_fail_text: inputs[3].value,
-        frontend_history_keep: inputs[4].value,
-        frontend_stock_visible: box.querySelector('select').selectedIndex === 0 ? 1 : 0,
+        redeem_fail_text: inputs[2].value,
+        ip_redeem_limit_enabled: document.getElementById('ipLimitEnabled').value,
+        ip_redeem_limit_seconds: inputs[3].value,
+        ip_redeem_limit_text: inputs[4].value,
+        frontend_history_keep: inputs[5].value,
+        frontend_stock_visible: document.getElementById('stockVisible').value,
         announcement: box.querySelector('.textarea').value
       })
     });

@@ -32,7 +32,6 @@ MYSQL_POOL_SIZE = int(os.environ.get("MYSQL_POOL_SIZE", "12"))
 MYSQL_POOL_WAIT_SECONDS = int(os.environ.get("MYSQL_POOL_WAIT_SECONDS", "5"))
 CDK_CHARS = "ABCDEFGHJKMNPQRSTVWXYZ23456789"
 CDK_RE = re.compile(r"^[A-Z]{3,5}(-[A-Z2-9]{4}){4}$")
-THROTTLE = {}
 REDIS_URL = os.environ.get("REDIS_URL", "").strip()
 REDIS_PREFIX = os.environ.get("REDIS_PREFIX", "duihuan")
 REDIS_CLIENT = None
@@ -395,8 +394,10 @@ def init_db():
         defaults = {
             "site_name": "兑换中心",
             "query_max": "50",
-            "redeem_throttle_seconds": "3",
             "redeem_fail_text": "卡密无效或已使用",
+            "ip_redeem_limit_enabled": "1",
+            "ip_redeem_limit_seconds": "60",
+            "ip_redeem_limit_text": "当前IP兑换频繁",
             "frontend_history_keep": "200",
             "frontend_stock_visible": "1",
             "announcement": "",
@@ -577,16 +578,19 @@ class App(BaseHTTPRequestHandler):
         payload = self.read_json()
         code = str(payload.get("cdk", "")).strip().upper()
         fail_text = get_setting(conn, "redeem_fail_text", "卡密无效或已使用")
-        delay = int(get_setting(conn, "redeem_throttle_seconds", "3"))
         ip = self.ip()
-        last = THROTTLE.get(ip, 0)
-        if time.time() - last < delay:
-            return self.fail(1007, "兑换太频繁,请稍后再试")
-        THROTTLE[ip] = time.time()
+        r = redis_client()
+        if str(get_setting(conn, "ip_redeem_limit_enabled", "1")) != "0" and r:
+            try:
+                delay = max(1, int(get_setting(conn, "ip_redeem_limit_seconds", "60") or 60))
+            except ValueError:
+                delay = 60
+            msg = get_setting(conn, "ip_redeem_limit_text", "当前IP兑换频繁")
+            if not r.set(redis_key("limit", "redeem_ip", ip), "1", nx=True, ex=delay):
+                return self.fail(1007, msg)
         if not CDK_RE.match(code):
             self.write_redeem_log(conn, code, None, 2)
             return self.fail(1001, fail_text)
-        r = redis_client()
         if r:
             return self.public_redeem_redis(conn, r, code, fail_text, ip)
         return self.fail(5001, "Redis 未启用,秒抢兑换已暂停")
