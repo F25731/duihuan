@@ -23,6 +23,7 @@ from http import HTTPStatus
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from urllib.request import urlopen, Request as UrlRequest
 
 
 ROOT = Path(__file__).resolve().parent
@@ -59,11 +60,20 @@ if not CSRF_SECRET:
     CSRF_SECRET = hashlib.sha256(fallback_secret.encode("utf-8")).hexdigest()
 
 # Trusted reverse proxy IPs/CIDRs used for X-Forwarded-For.
+# Cloudflare IP ranges (https://www.cloudflare.com/ips/)
+CLOUDFLARE_IPS = [
+    "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+    "141.101.64.0/18", "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20",
+    "197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
+    "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+    "2400:cb00::/32", "2606:4700::/32", "2803:f800::/32",
+    "2405:b500::/32", "2405:8100::/32", "2a06:98c0::/29", "2c0f:f248::/32",
+]
 TRUSTED_PROXIES = [
     item.strip()
     for item in os.environ.get("TRUSTED_PROXIES", "127.0.0.1,::1").split(",")
     if item.strip()
-]
+] + CLOUDFLARE_IPS
 
 # 配置日志
 logging.basicConfig(
@@ -509,6 +519,11 @@ def get_real_ip(headers, client_address):
     """安全地获取真实IP地址，仅在来自可信代理时才使用转发头"""
     direct_ip = client_address[0]
 
+    # Cloudflare 模式：优先使用 CF-Connecting-IP
+    cf_ip = clean_header_ip(headers.get("CF-Connecting-IP", ""))
+    if cf_ip and is_trusted_proxy(direct_ip):
+        return cf_ip
+
     # 如果直连IP不在可信代理列表中，直接返回
     if not is_trusted_proxy(direct_ip):
         return direct_ip
@@ -861,11 +876,25 @@ class App(BaseHTTPRequestHandler):
         )
         self.ok(result)
 
+    def verify_turnstile(self, token, ip):
+        TURNSTILE_SECRET = os.environ.get("TURNSTILE_SECRET", "")
+        try:
+            body = json.dumps({"secret": TURNSTILE_SECRET, "response": token, "remoteip": ip}).encode()
+            req = UrlRequest("https://challenges.cloudflare.com/turnstile/v0/siteverify", data=body, headers={"Content-Type": "application/json"}, method="POST")
+            with urlopen(req, timeout=5) as resp:
+                result = json.loads(resp.read())
+            return result.get("success", False)
+        except Exception:
+            return False
+
     def public_redeem(self, conn):
         payload = self.read_json()
         code = str(payload.get("cdk", "")).strip().upper()
         fail_text = get_setting(conn, "redeem_fail_text", "卡密无效或已使用")
         ip = self.ip()
+        turnstile_token = str(payload.get("turnstile_token", "")).strip()
+        if not turnstile_token or not self.verify_turnstile(turnstile_token, ip):
+            return self.fail(1008, "人机验证失败，请重试")
         r = redis_client()
         ip_limit = ip_redeem_limit_config(conn)
         if ip_limit and r and r.exists(ip_redeem_limit_key(ip)):
