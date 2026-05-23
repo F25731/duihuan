@@ -717,11 +717,20 @@
       'Content-Type': 'application/json',
       ...(options.headers || {})
     };
-    // 添加 CSRF token
-    if (csrfToken && (options.method === 'POST' || options.method === 'PUT' || options.method === 'DELETE')) {
+
+    // 自动检测 HTTP 方法
+    let method = options.method || 'GET';
+    if (!options.method && options.body) {
+      method = 'POST'; // 有 body 默认为 POST
+    }
+
+    // 添加 CSRF token（所有修改操作）
+    if (csrfToken && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
       headers['X-CSRF-Token'] = csrfToken;
     }
+
     const res = await fetch(path, {
+      method,
       headers,
       credentials: 'same-origin',
       ...options
