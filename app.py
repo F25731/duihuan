@@ -77,7 +77,7 @@ class MySQLAdapter:
         return self
 
     def __exit__(self, exc_type, exc, tb):
-        self.conn.close()
+        self.close()
 
     def sql(self, statement):
         statement = statement.strip()
