@@ -1245,14 +1245,14 @@ class WSGIHeaders:
         for key, value in environ.items():
             if key.startswith("HTTP_"):
                 name = key[5:].replace("_", "-").title()
-                self.values[name] = value
+                self.values[name.lower()] = value
         if environ.get("CONTENT_TYPE"):
-            self.values["Content-Type"] = environ["CONTENT_TYPE"]
+            self.values["content-type"] = environ["CONTENT_TYPE"]
         if environ.get("CONTENT_LENGTH"):
-            self.values["Content-Length"] = environ["CONTENT_LENGTH"]
+            self.values["content-length"] = environ["CONTENT_LENGTH"]
 
     def get(self, key, default=None):
-        return self.values.get(key, default)
+        return self.values.get(key.lower(), default)
 
 
 class WSGIRequest(App):
