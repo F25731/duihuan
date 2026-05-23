@@ -496,6 +496,7 @@
                 <th>状态</th>
                 <th>生成时间</th>
                 <th>使用时间</th>
+                <th>兑换 IP</th>
                 <th>备注</th>
                 <th style="width:140px;">操作</th>
               </tr>
@@ -1002,6 +1003,7 @@
         <td>${cdkStatus(it.status)}</td>
         <td class="muted">${escapeHtml((it.generated_at || '').slice(5,16))}</td>
         <td class="muted">${escapeHtml(it.used_at ? it.used_at.slice(5,16) : '—')}</td>
+        <td class="muted">${escapeHtml(it.used_ip || '—')}</td>
         <td class="muted">${escapeHtml(it.remark || '—')}</td>
         <td class="ops"><a>详情</a><a data-copy="${escapeHtml(it.code)}">复制</a>${+it.status === 0 ? '<a class="danger" data-disable-cdk="'+it.id+'">禁用</a>' : ''}</td>
       `;
