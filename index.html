@@ -363,6 +363,8 @@
 <script>
   const HISTORY_KEY = 'cdk_redeem_history_v1';
   let historyKeep = 200;
+  let stockRefreshSeconds = 15;
+  let stockTimer = null;
 
   document.querySelectorAll('.tab').forEach(t => {
     t.addEventListener('click', () => {
@@ -461,6 +463,7 @@
     });
   }
   async function loadStocks(){
+    if(document.hidden) return;
     try{
       const rows = await api('/api/stocks');
       renderStockRows(rows);
@@ -468,6 +471,17 @@
       document.querySelectorAll('.grid').forEach(el => renderGridByFilled(el, 0));
     }
   }
+  function startStockAutoRefresh(){
+    if(stockTimer) clearInterval(stockTimer);
+    stockTimer = null;
+    if(stockRefreshSeconds <= 0 || document.querySelector('.float-stock').style.display === 'none') return;
+    stockTimer = setInterval(loadStocks, stockRefreshSeconds * 1000);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden) return;
+    loadStocks();
+    startStockAutoRefresh();
+  });
 
   function loadHistory(){
     try{ return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }catch(e){ return []; }
@@ -611,9 +625,11 @@
       const site = await api('/api/site');
       historyKeep = Math.max(1, +(site.frontend_history_keep || 200));
       if(String(site.frontend_stock_visible) === '0') document.querySelector('.float-stock').style.display = 'none';
+      stockRefreshSeconds = Math.max(0, +(site.frontend_stock_refresh_seconds || 15));
     }catch(e){}
     renderHistory();
     await loadStocks();
+    startStockAutoRefresh();
   }
   init();
 </script>

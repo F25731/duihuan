@@ -552,6 +552,7 @@
             <div class="field"><label class="lbl">前台是否显示实时库存</label>
               <select class="select" id="stockVisible"><option value="1">显示</option><option value="0">隐藏</option></select>
             </div>
+            <div class="field"><label class="lbl">实时库存刷新间隔(秒,0=关闭)</label><input class="input" /></div>
             <div class="field" style="grid-column:1/-1;"><label class="lbl">公告 / 顶部通知</label><textarea class="textarea" style="min-height:100px;"></textarea></div>
           </div>
           <div class="flex-between mt-16">
@@ -1091,6 +1092,7 @@
     inputs[3].value = s.ip_redeem_limit_seconds || 60;
     inputs[4].value = s.ip_redeem_limit_text || '当前IP兑换频繁';
     inputs[5].value = s.frontend_history_keep || 200;
+    inputs[6].value = s.frontend_stock_refresh_seconds || 15;
     document.getElementById('ipLimitEnabled').value = String(s.ip_redeem_limit_enabled) === '0' ? '0' : '1';
     document.getElementById('stockVisible').value = String(s.frontend_stock_visible) === '0' ? '0' : '1';
     box.querySelector('.textarea').value = s.announcement || '';
@@ -1108,6 +1110,7 @@
         ip_redeem_limit_seconds: inputs[3].value,
         ip_redeem_limit_text: inputs[4].value,
         frontend_history_keep: inputs[5].value,
+        frontend_stock_refresh_seconds: inputs[6].value,
         frontend_stock_visible: document.getElementById('stockVisible').value,
         announcement: box.querySelector('.textarea').value
       })

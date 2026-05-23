@@ -417,6 +417,7 @@ def init_db():
             "ip_redeem_limit_text": "当前IP兑换频繁",
             "frontend_history_keep": "200",
             "frontend_stock_visible": "1",
+            "frontend_stock_refresh_seconds": "15",
             "announcement": "",
         }
         for key, value in defaults.items():
