@@ -733,7 +733,7 @@
       method,
       headers,
       credentials: 'same-origin',
-      ...options
+      body: options.body || undefined
     });
     const data = await res.json();
     if(data.code !== 0){
@@ -919,17 +919,21 @@
       intro: textareas[0].value,
       usage_text: textareas[1].value
     };
-    await api(productEditId ? `/admin/products/${productEditId}` : '/admin/products', {
-      method: productEditId ? 'PUT' : 'POST',
-      body: JSON.stringify({
-        ...payload
-      })
-    });
-    closeModal('productModal');
-    productEditId = null;
-    modal.querySelectorAll('input,textarea').forEach(x=>{ if(!x.type || x.type !== 'number') x.value=''; });
-    await loadAll();
-    showToast('商品已保存');
+    try {
+      await api(productEditId ? `/admin/products/${productEditId}` : '/admin/products', {
+        method: productEditId ? 'PUT' : 'POST',
+        body: JSON.stringify({
+          ...payload
+        })
+      });
+      closeModal('productModal');
+      productEditId = null;
+      modal.querySelectorAll('input,textarea').forEach(x=>{ if(!x.type || x.type !== 'number') x.value=''; });
+      await loadAll();
+      showToast('商品已保存');
+    } catch(err) {
+      showToast(err.message || '保存失败');
+    }
   }
   document.querySelector('#productModal .btn-primary').addEventListener('click', saveProduct);
   tbody('products').addEventListener('click', async e=>{
@@ -954,9 +958,11 @@
     if(del){
       const p = products.find(x => +x.id === +del.dataset.delProduct);
       if(!confirm(`确定删除商品「${p ? p.name : del.dataset.delProduct}」? 相关库存和卡密也会删除。`)) return;
-      await api(`/admin/products/${del.dataset.delProduct}`, {method:'DELETE'});
-      await loadAll();
-      showToast('商品已删除');
+      try {
+        await api(`/admin/products/${del.dataset.delProduct}`, {method:'DELETE'});
+        await loadAll();
+        showToast('商品已删除');
+      } catch(err) { showToast(err.message || '删除失败'); }
     }
   });
 
@@ -987,26 +993,32 @@
     const selects = stockPage.querySelectorAll('select');
     if(!selects[0].value){ showToast('请先新增商品'); return; }
     const modes = ['append', 'overwrite', 'dedupe'];
-    const data = await api('/admin/inventory/import', {
-      method:'POST',
-      body: JSON.stringify({
-        product_id: +selects[0].value,
-        mode: modes[selects[1].selectedIndex] || 'append',
-        contents: ta.value
-      })
-    });
-    ta.value = ''; lineCount.textContent = '0';
-    await loadAll();
-    showToast(`已导入 ${data.count} 条库存`);
+    try {
+      const data = await api('/admin/inventory/import', {
+        method:'POST',
+        body: JSON.stringify({
+          product_id: +selects[0].value,
+          mode: modes[selects[1].selectedIndex] || 'append',
+          contents: ta.value
+        })
+      });
+      ta.value = ''; lineCount.textContent = '0';
+      await loadAll();
+      showToast(`已导入 ${data.count} 条库存`);
+    } catch(err) {
+      showToast(err.message || '导入失败');
+    }
   }
   page('stock').querySelectorAll('.btn-primary')[0].addEventListener('click', importInventory);
   page('stock').querySelector('select').addEventListener('change', loadInventory);
   tbody('stock').addEventListener('click', async e=>{
     const a = e.target.closest('[data-del-inv]');
     if(!a) return;
-    await api(`/admin/inventory/${a.dataset.delInv}`, {method:'DELETE'});
-    await loadAll();
-    showToast('库存已删除');
+    try {
+      await api(`/admin/inventory/${a.dataset.delInv}`, {method:'DELETE'});
+      await loadAll();
+      showToast('库存已删除');
+    } catch(err) { showToast(err.message || '删除失败'); }
   });
 
   async function loadCdks(){
@@ -1034,17 +1046,21 @@
     if(copy){ navigator.clipboard.writeText(copy.dataset.copy); showToast('已复制卡密'); return; }
     const dis = e.target.closest('[data-disable-cdk]');
     if(dis){
-      await api('/admin/cdks/disable', {method:'POST', body:JSON.stringify({ids:[+dis.dataset.disableCdk]})});
-      await loadAll();
-      showToast('卡密已禁用');
+      try {
+        await api('/admin/cdks/disable', {method:'POST', body:JSON.stringify({ids:[+dis.dataset.disableCdk]})});
+        await loadAll();
+        showToast('卡密已禁用');
+      } catch(err) { showToast(err.message || '禁用失败'); }
     }
   });
   page('cdk').querySelector('.btn-danger').addEventListener('click', async ()=>{
     const ids = [...tbody('cdk').querySelectorAll('input[type="checkbox"]:checked')].map(x=>+x.value);
     if(!ids.length){ showToast('请选择卡密'); return; }
-    await api('/admin/cdks/disable', {method:'POST', body:JSON.stringify({ids})});
-    await loadAll();
-    showToast('已批量禁用');
+    try {
+      await api('/admin/cdks/disable', {method:'POST', body:JSON.stringify({ids})});
+      await loadAll();
+      showToast('已批量禁用');
+    } catch(err) { showToast(err.message || '批量禁用失败'); }
   });
 
   async function doGenerate(){
@@ -1053,15 +1069,19 @@
     const count = Math.max(1, Math.min(100000, +document.getElementById('genCount').value || 0));
     const days = Math.max(0, +document.getElementById('genDays').value || 0);
     const remark = document.getElementById('genRemark').value;
-    const data = await api('/admin/cdks/generate', {
-      method:'POST',
-      body: JSON.stringify({product_id:+opt.value, count, valid_days:days, remark})
-    });
-    document.getElementById('genResultText').value = data.codes.join('\n');
-    document.getElementById('genResultCount').textContent = data.count;
-    document.getElementById('genResultBox').style.display = 'block';
-    await loadAll();
-    showToast(`已生成 ${data.count} 条卡密`);
+    try {
+      const data = await api('/admin/cdks/generate', {
+        method:'POST',
+        body: JSON.stringify({product_id:+opt.value, count, valid_days:days, remark})
+      });
+      document.getElementById('genResultText').value = data.codes.join('\n');
+      document.getElementById('genResultCount').textContent = data.count;
+      document.getElementById('genResultBox').style.display = 'block';
+      await loadAll();
+      showToast(`已生成 ${data.count} 条卡密`);
+    } catch(err) {
+      showToast(err.message || '生成失败');
+    }
   }
   function copyGenResult(){
     const ta = document.getElementById('genResultText');
@@ -1118,32 +1138,36 @@
   page('settings').querySelector('.flex-between .btn-primary').addEventListener('click', async ()=>{
     const box = page('settings');
     const inputs = box.querySelectorAll('.input');
-    await api('/admin/settings', {
-      method:'PUT',
-      body: JSON.stringify({
-        site_name: inputs[0].value,
-        query_max: inputs[1].value,
-        redeem_fail_text: inputs[2].value,
-        ip_redeem_limit_enabled: document.getElementById('ipLimitEnabled').value,
-        ip_redeem_limit_seconds: inputs[3].value,
-        ip_redeem_limit_text: inputs[4].value,
-        frontend_history_keep: inputs[5].value,
-        frontend_stock_refresh_seconds: inputs[6].value,
-        frontend_stock_visible: document.getElementById('stockVisible').value,
-        announcement: box.querySelector('.textarea').value
-      })
-    });
-    showToast('设置已保存');
+    try {
+      await api('/admin/settings', {
+        method:'PUT',
+        body: JSON.stringify({
+          site_name: inputs[0].value,
+          query_max: inputs[1].value,
+          redeem_fail_text: inputs[2].value,
+          ip_redeem_limit_enabled: document.getElementById('ipLimitEnabled').value,
+          ip_redeem_limit_seconds: inputs[3].value,
+          ip_redeem_limit_text: inputs[4].value,
+          frontend_history_keep: inputs[5].value,
+          frontend_stock_refresh_seconds: inputs[6].value,
+          frontend_stock_visible: document.getElementById('stockVisible').value,
+          announcement: box.querySelector('.textarea').value
+        })
+      });
+      showToast('设置已保存');
+    } catch(err) { showToast(err.message || '保存失败'); }
   });
   page('settings').querySelectorAll('.card-block')[1].querySelector('.btn-primary').addEventListener('click', async ()=>{
     const inputs = page('settings').querySelectorAll('.card-block')[1].querySelectorAll('.input');
-    await api('/admin/password', {method:'PUT', body:JSON.stringify({
-      old_password: inputs[0].value,
-      new_password: inputs[1].value,
-      confirm_password: inputs[2].value
-    })});
-    inputs.forEach(x=>x.value='');
-    showToast('密码已更新');
+    try {
+      await api('/admin/password', {method:'PUT', body:JSON.stringify({
+        old_password: inputs[0].value,
+        new_password: inputs[1].value,
+        confirm_password: inputs[2].value
+      })});
+      inputs.forEach(x=>x.value='');
+      showToast('密码已更新');
+    } catch(err) { showToast(err.message || '修改失败'); }
   });
 
   async function logout(){
