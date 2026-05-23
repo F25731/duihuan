@@ -374,6 +374,23 @@ def set_setting(conn, key, value):
     )
 
 
+def ip_redeem_limit_config(conn):
+    if str(get_setting(conn, "ip_redeem_limit_enabled", "1")) == "0":
+        return None
+    try:
+        delay = max(1, int(get_setting(conn, "ip_redeem_limit_seconds", "60") or 60))
+    except ValueError:
+        delay = 60
+    return {
+        "delay": delay,
+        "message": get_setting(conn, "ip_redeem_limit_text", "当前IP兑换频繁"),
+    }
+
+
+def ip_redeem_limit_key(ip):
+    return redis_key("limit", "redeem_ip", ip)
+
+
 def admin_log(conn, admin_id, action, target, ip):
     conn.execute(
         "INSERT INTO admin_log(admin_id, action, target, ip, created_at) VALUES(?,?,?,?,?)",
@@ -580,22 +597,17 @@ class App(BaseHTTPRequestHandler):
         fail_text = get_setting(conn, "redeem_fail_text", "卡密无效或已使用")
         ip = self.ip()
         r = redis_client()
-        if str(get_setting(conn, "ip_redeem_limit_enabled", "1")) != "0" and r:
-            try:
-                delay = max(1, int(get_setting(conn, "ip_redeem_limit_seconds", "60") or 60))
-            except ValueError:
-                delay = 60
-            msg = get_setting(conn, "ip_redeem_limit_text", "当前IP兑换频繁")
-            if not r.set(redis_key("limit", "redeem_ip", ip), "1", nx=True, ex=delay):
-                return self.fail(1007, msg)
+        ip_limit = ip_redeem_limit_config(conn)
+        if ip_limit and r and r.exists(ip_redeem_limit_key(ip)):
+            return self.fail(1007, ip_limit["message"])
         if not CDK_RE.match(code):
             self.write_redeem_log(conn, code, None, 2)
             return self.fail(1001, fail_text)
         if r:
-            return self.public_redeem_redis(conn, r, code, fail_text, ip)
+            return self.public_redeem_redis(conn, r, code, fail_text, ip, ip_limit)
         return self.fail(5001, "Redis 未启用,秒抢兑换已暂停")
 
-    def public_redeem_redis(self, conn, r, code, fail_text, ip):
+    def public_redeem_redis(self, conn, r, code, fail_text, ip, ip_limit):
         lock_key = redis_key("lock", "cdk", code)
         lock_token = secrets.token_urlsafe(16)
         if not r.set(lock_key, lock_token, nx=True, ex=30):
@@ -660,6 +672,8 @@ class App(BaseHTTPRequestHandler):
                     (1, code, product["id"], ip, self.headers.get("User-Agent", "")[:255], 1, t),
                 )
                 conn.execute("COMMIT")
+                if ip_limit:
+                    r.set(ip_redeem_limit_key(ip), "1", ex=ip_limit["delay"])
                 return self.ok({
                     "product": {"id": product["id"], "name": product["name"], "intro": product["intro"], "usage_text": product["usage_text"]},
                     "content": inv["content"],
