@@ -84,7 +84,6 @@ services:
       CSRF_SECRET: "change_csrf_secret_to_a_long_random_string"
       MAX_REQUEST_BODY_SIZE: 10485760
       TRUSTED_PROXIES: "127.0.0.1,::1,172.16.0.0/12"
-      TURNSTILE_SECRET: "change_turnstile_secret"
     deploy:
       resources:
         limits:

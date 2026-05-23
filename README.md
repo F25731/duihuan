@@ -167,7 +167,6 @@ nano docker-compose.yml
 # - Redis requirepass (command 参数)
 # - REDIS_URL (包含 Redis 密码)
 # - CSRF_SECRET
-# - TURNSTILE_SECRET
 # - ADMIN_PASSWORD (可选，建议首次登录后在后台修改)
 ```
 

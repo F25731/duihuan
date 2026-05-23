@@ -260,7 +260,6 @@
   }
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 </style>
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
 
@@ -283,8 +282,6 @@
           <span id="cdkCount">0 字符</span>
         </div>
       </div>
-
-      <div class="cf-turnstile" data-sitekey="0x4AAAAAADU9QHuqq0FnlRaQ" data-callback="onTurnstileSuccess" data-expired-callback="onTurnstileExpired"></div>
 
       <button class="btn btn-primary" id="redeemBtn">兑换卡密</button>
 
@@ -568,16 +565,11 @@
       </div>
     `;
   }
-  let turnstileToken = '';
-  window.onTurnstileSuccess = function(token){ turnstileToken = token; };
-  window.onTurnstileExpired = function(){ turnstileToken = ''; };
-
   document.getElementById('redeemBtn').addEventListener('click', async ()=>{
     const v = cdkInput.value.trim().toUpperCase();
     if(!v){ showToast('请输入卡密'); return; }
-    if(!turnstileToken){ showToast('请完成人机验证'); return; }
     try{
-      const data = await api('/api/redeem', {method:'POST', body:JSON.stringify({cdk:v, turnstile_token:turnstileToken})});
+      const data = await api('/api/redeem', {method:'POST', body:JSON.stringify({cdk:v})});
       const item = {
         time: data.time,
         product: data.product.name,
@@ -594,9 +586,6 @@
       showToast('兑换成功');
     }catch(err){
       showToast(err.message || '兑换失败');
-    }finally{
-      turnstileToken = '';
-      if(window.turnstile) turnstile.reset();
     }
   });
 

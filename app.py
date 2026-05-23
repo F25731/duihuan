@@ -23,7 +23,6 @@ from http import HTTPStatus
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
-from urllib.request import urlopen, Request as UrlRequest
 
 
 ROOT = Path(__file__).resolve().parent
@@ -876,25 +875,11 @@ class App(BaseHTTPRequestHandler):
         )
         self.ok(result)
 
-    def verify_turnstile(self, token, ip):
-        TURNSTILE_SECRET = os.environ.get("TURNSTILE_SECRET", "")
-        try:
-            body = json.dumps({"secret": TURNSTILE_SECRET, "response": token, "remoteip": ip}).encode()
-            req = UrlRequest("https://challenges.cloudflare.com/turnstile/v0/siteverify", data=body, headers={"Content-Type": "application/json"}, method="POST")
-            with urlopen(req, timeout=5) as resp:
-                result = json.loads(resp.read())
-            return result.get("success", False)
-        except Exception:
-            return False
-
     def public_redeem(self, conn):
         payload = self.read_json()
         code = str(payload.get("cdk", "")).strip().upper()
         fail_text = get_setting(conn, "redeem_fail_text", "卡密无效或已使用")
         ip = self.ip()
-        turnstile_token = str(payload.get("turnstile_token", "")).strip()
-        if not turnstile_token or not self.verify_turnstile(turnstile_token, ip):
-            return self.fail(1008, "人机验证失败，请重试")
         r = redis_client()
         ip_limit = ip_redeem_limit_config(conn)
         if ip_limit and r and r.exists(ip_redeem_limit_key(ip)):
