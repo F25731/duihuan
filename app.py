@@ -15,7 +15,9 @@ import sys
 import threading
 import time
 import traceback
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+
+BEIJING_TZ = timezone(timedelta(hours=8))
 from http import cookies
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -72,7 +74,11 @@ logging.basicConfig(
 
 
 def now_str():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return beijing_now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def beijing_now():
+    return datetime.now(BEIJING_TZ).replace(tzinfo=None)
 
 
 def json_default(value):
@@ -677,7 +683,7 @@ class App(BaseHTTPRequestHandler):
         if last_activity:
             if isinstance(last_activity, str):
                 last_activity = datetime.strptime(last_activity, "%Y-%m-%d %H:%M:%S")
-            if datetime.now() - last_activity > timedelta(hours=2):
+            if beijing_now() - last_activity > timedelta(hours=2):
                 conn.execute("DELETE FROM admin_session WHERE token=?", (token,))
                 return None
 
@@ -994,7 +1000,7 @@ class App(BaseHTTPRequestHandler):
         conn.execute("DELETE FROM admin_session WHERE admin_id=?", (admin["id"],))
 
         token = secrets.token_urlsafe(32)
-        expires = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+        expires = (beijing_now() + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
         now = now_str()
         conn.execute(
             "INSERT INTO admin_session(token,admin_id,expires_at,created_at,last_activity_at) VALUES(?,?,?,?,?)",
@@ -1027,8 +1033,8 @@ class App(BaseHTTPRequestHandler):
 
     def admin_routes(self, conn, admin, method, path):
         if path == "/admin/dashboard/summary" and method == "GET":
-            today_start = datetime.now().strftime("%Y-%m-%d 00:00:00")
-            day_ago = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+            today_start = beijing_now().strftime("%Y-%m-%d 00:00:00")
+            day_ago = (beijing_now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
             return self.ok({
                 "products": conn.execute("SELECT COUNT(*) c FROM product").fetchone()["c"],
                 "inventory": conn.execute("SELECT COUNT(*) c FROM inventory WHERE status=0").fetchone()["c"],
@@ -1091,7 +1097,7 @@ class App(BaseHTTPRequestHandler):
             raw = p.get("contents", [])
             lines = raw if isinstance(raw, list) else str(raw).splitlines()
             lines = [x.strip() for x in lines if x.strip()]
-            batch_no = datetime.now().strftime("%Y%m%d%H%M%S")
+            batch_no = beijing_now().strftime("%Y%m%d%H%M%S")
 
             # 使用事务保证数据一致性
             try:
@@ -1146,8 +1152,8 @@ class App(BaseHTTPRequestHandler):
             product = conn.execute("SELECT * FROM product WHERE id=?", (product_id,)).fetchone()
             if not product:
                 return self.fail(1005, "商品不存在", 404)
-            expire_at = (datetime.now() + timedelta(days=valid_days)).strftime("%Y-%m-%d %H:%M:%S") if valid_days else None
-            batch_no = datetime.now().strftime("%Y%m%d%H%M%S")
+            expire_at = (beijing_now() + timedelta(days=valid_days)).strftime("%Y-%m-%d %H:%M:%S") if valid_days else None
+            batch_no = beijing_now().strftime("%Y%m%d%H%M%S")
             codes = []
             seen = set()
             while len(codes) < count:
