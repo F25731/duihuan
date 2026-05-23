@@ -710,10 +710,19 @@
   };
   let products = [];
   let productEditId = null;
+  let csrfToken = '';
 
   async function api(path, options = {}){
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    };
+    // 添加 CSRF token
+    if (csrfToken && (options.method === 'POST' || options.method === 'PUT' || options.method === 'DELETE')) {
+      headers['X-CSRF-Token'] = csrfToken;
+    }
     const res = await fetch(path, {
-      headers: {'Content-Type': 'application/json', ...(options.headers || {})},
+      headers,
       credentials: 'same-origin',
       ...options
     });
@@ -1145,6 +1154,10 @@
     try{
       const me = await api('/admin/me');
       document.querySelector('.side-foot b').textContent = me.username;
+      // 保存 CSRF token
+      if (me.csrf_token) {
+        csrfToken = me.csrf_token;
+      }
       await loadAll();
     }catch(err){
       if(err && err.code === 2001){

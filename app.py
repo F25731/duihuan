@@ -3,12 +3,15 @@ import base64
 import hashlib
 import hmac
 import io
+import ipaddress
 import json
+import logging
 import mimetypes
 import os
 import queue
 import re
 import secrets
+import sys
 import threading
 import time
 import traceback
@@ -30,6 +33,7 @@ MYSQL_PASSWORD = os.environ.get("MYSQL_PASSWORD", "")
 MYSQL_DATABASE = os.environ.get("MYSQL_DATABASE", "duihuan")
 MYSQL_POOL_SIZE = int(os.environ.get("MYSQL_POOL_SIZE", "12"))
 MYSQL_POOL_WAIT_SECONDS = int(os.environ.get("MYSQL_POOL_WAIT_SECONDS", "5"))
+MAX_REQUEST_BODY_SIZE = int(os.environ.get("MAX_REQUEST_BODY_SIZE", str(10 * 1024 * 1024)))  # 10MB
 CDK_CHARS = "ABCDEFGHJKMNPQRSTVWXYZ23456789"
 CDK_RE = re.compile(r"^[A-Z]{3,5}(-[A-Z2-9]{4}){4}$")
 REDIS_URL = os.environ.get("REDIS_URL", "").strip()
@@ -40,6 +44,31 @@ MYSQL_POOL_CREATED = 0
 MYSQL_POOL_LOCK = threading.Lock()
 STARTUP_DONE = False
 STARTUP_LOCK = threading.Lock()
+# CSRF secret key - must be stable across Gunicorn workers.
+CSRF_SECRET = (os.environ.get("CSRF_SECRET") or "").strip()
+if not CSRF_SECRET:
+    fallback_secret = "|".join([
+        MYSQL_HOST,
+        MYSQL_USER,
+        MYSQL_DATABASE,
+        os.environ.get("ADMIN_USERNAME", "Fyanxv"),
+        os.environ.get("ADMIN_PASSWORD", "Fyb2530+"),
+    ])
+    CSRF_SECRET = hashlib.sha256(fallback_secret.encode("utf-8")).hexdigest()
+
+# Trusted reverse proxy IPs/CIDRs used for X-Forwarded-For.
+TRUSTED_PROXIES = [
+    item.strip()
+    for item in os.environ.get("TRUSTED_PROXIES", "127.0.0.1,::1").split(",")
+    if item.strip()
+]
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
 
 
 def now_str():
@@ -158,7 +187,8 @@ def db():
             conn.close()
         except Exception:
             pass
-        conn = create_mysql_connection()
+        with MYSQL_POOL_LOCK:
+            conn = create_mysql_connection()
     return MySQLAdapter(conn, pooled=True)
 
 
@@ -173,10 +203,12 @@ def wait_for_dependencies():
                 client = redis_client()
                 if not client:
                     raise RuntimeError("Redis 驱动未安装或不可用")
+                # 验证 Redis 连接
+                client.ping()
             return
         except Exception as exc:
             last_error = exc
-            print(f"等待 MySQL/Redis 就绪: {exc}", flush=True)
+            logging.warning(f"等待 MySQL/Redis 就绪: {exc}")
             time.sleep(2)
     raise RuntimeError(f"MySQL/Redis 启动超时: {last_error}")
 
@@ -197,8 +229,10 @@ def schema_statements():
             token VARCHAR(128) PRIMARY KEY,
             admin_id BIGINT NOT NULL,
             expires_at TIMESTAMP NOT NULL,
-            created_at TIMESTAMP NOT NULL
+            created_at TIMESTAMP NOT NULL,
+            last_activity_at TIMESTAMP NOT NULL
         )""",
+        f"{idx_prefix} idx_admin_session_expires ON admin_session(expires_at)",
         f"""CREATE TABLE IF NOT EXISTS product (
             id {pk},
             name VARCHAR(128) NOT NULL,
@@ -348,6 +382,8 @@ def rebuild_inventory_queue(conn, product_id):
     ids = [str(row["id"]) for row in rows]
     if ids:
         pipe.rpush(key, *ids)
+        # 设置过期时间为30天，防止内存泄漏
+        pipe.expire(key, 30 * 24 * 3600)
     pipe.execute()
     return len(ids)
 
@@ -391,6 +427,103 @@ def ip_redeem_limit_key(ip):
     return redis_key("limit", "redeem_ip", ip)
 
 
+def login_attempt_key(ip):
+    """登录失败计数的 Redis key"""
+    return redis_key("login_attempt", ip)
+
+
+def check_login_attempts(ip):
+    """检查登录失败次数（使用 Redis），返回 (是否允许, 剩余锁定秒数)"""
+    r = redis_client()
+    if not r:
+        # Redis 不可用时降级为允许登录
+        return True, 0
+
+    key = login_attempt_key(ip)
+    attempts = r.get(key)
+
+    if attempts and int(attempts) >= 10:
+        ttl = r.ttl(key)
+        return False, max(0, ttl)
+
+    return True, 0
+
+
+def record_login_attempt(ip, success):
+    """记录登录尝试（使用 Redis）"""
+    r = redis_client()
+    if not r:
+        return
+
+    key = login_attempt_key(ip)
+
+    if success:
+        # 登录成功，清除记录
+        r.delete(key)
+    else:
+        # 登录失败，增加计数
+        attempts = r.incr(key)
+        if attempts == 1:
+            # 首次失败，设置5分钟过期
+            r.expire(key, 300)
+        elif attempts >= 10:
+            # 失败10次，锁定30分钟
+            r.expire(key, 1800)
+
+
+def is_trusted_proxy(ip):
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    for rule in TRUSTED_PROXIES:
+        try:
+            if "/" in rule:
+                if ip_obj in ipaddress.ip_network(rule, strict=False):
+                    return True
+            elif ip_obj == ipaddress.ip_address(rule):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def clean_header_ip(value):
+    value = (value or "").strip()
+    if not value:
+        return ""
+    try:
+        ipaddress.ip_address(value)
+        return value
+    except ValueError:
+        return ""
+
+
+def get_real_ip(headers, client_address):
+    """安全地获取真实IP地址，仅在来自可信代理时才使用转发头"""
+    direct_ip = client_address[0]
+
+    # 如果直连IP不在可信代理列表中，直接返回
+    if not is_trusted_proxy(direct_ip):
+        return direct_ip
+
+    # 来自可信代理，解析转发头
+    real_ip = clean_header_ip(headers.get("X-Real-IP", ""))
+    if real_ip:
+        return real_ip
+
+    # 解析 X-Forwarded-For，取第一个IP（客户端IP）
+    forwarded = headers.get("X-Forwarded-For", "")
+    if forwarded:
+        for ip in forwarded.split(","):
+            candidate = clean_header_ip(ip)
+            if candidate:
+                return candidate
+
+    # 回退到直连IP
+    return direct_ip
+
+
 def admin_log(conn, admin_id, action, target, ip):
     conn.execute(
         "INSERT INTO admin_log(admin_id, action, target, ip, created_at) VALUES(?,?,?,?,?)",
@@ -401,6 +534,13 @@ def admin_log(conn, admin_id, action, target, ip):
 def init_db():
     with db() as conn:
         conn.executescript(schema_statements())
+
+        # 添加 last_activity_at 列（如果不存在）
+        try:
+            conn.execute("ALTER TABLE admin_session ADD COLUMN last_activity_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP")
+        except Exception:
+            pass
+
         if not conn.execute("SELECT 1 FROM admin LIMIT 1").fetchone():
             username = os.environ.get("ADMIN_USERNAME", "Fyanxv")
             password = os.environ.get("ADMIN_PASSWORD", "Fyb2530+")
@@ -408,6 +548,7 @@ def init_db():
                 "INSERT INTO admin(username,password_hash,created_at) VALUES(?,?,?)",
                 (username, hash_password(password), now_str()),
             )
+            logging.info(f"已创建默认管理员账号: {username}")
         defaults = {
             "site_name": "兑换中心",
             "query_max": "50",
@@ -435,13 +576,20 @@ class App(BaseHTTPRequestHandler):
     server_version = "CDKExchange/1.0"
 
     def log_message(self, fmt, *args):
-        return
+        # 记录关键请求日志
+        if self.command in ("POST", "PUT", "DELETE"):
+            logging.info(f"{self.address_string()} - {fmt % args}")
 
     def send_json(self, payload, status=200, headers=None):
         body = json.dumps(payload, ensure_ascii=False, default=json_default).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        # 添加安全响应头
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("X-XSS-Protection", "1; mode=block")
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
         for k, v in (headers or {}).items():
             self.send_header(k, v)
         self.end_headers()
@@ -452,6 +600,9 @@ class App(BaseHTTPRequestHandler):
 
     def read_json(self):
         size = int(self.headers.get("Content-Length", "0") or "0")
+        # 限制请求体大小
+        if size > MAX_REQUEST_BODY_SIZE:
+            raise ValueError(f"请求体过大，最大允许 {MAX_REQUEST_BODY_SIZE} 字节")
         raw = self.rfile.read(size) if size else b"{}"
         if not raw:
             return {}
@@ -462,21 +613,76 @@ class App(BaseHTTPRequestHandler):
             return {k: v[0] if len(v) == 1 else v for k, v in data.items()}
 
     def ip(self):
-        return self.headers.get("X-Forwarded-For", self.client_address[0]).split(",")[0].strip()
+        return get_real_ip(self.headers, self.client_address)
 
     def cookie_token(self):
         jar = cookies.SimpleCookie(self.headers.get("Cookie", ""))
         return jar.get("admin_session").value if jar.get("admin_session") else ""
+
+    def generate_csrf_token(self, admin_id):
+        """生成 CSRF token（使用 HMAC 签名）"""
+        timestamp = str(int(time.time()))
+        data = f"{admin_id}:{timestamp}"
+        signature = hmac.new(
+            CSRF_SECRET.encode(),
+            data.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        token = f"{data}:{signature}"
+        return base64.urlsafe_b64encode(token.encode()).decode()
+
+    def verify_csrf_token(self, token, admin_id):
+        """验证 CSRF token（24小时有效）"""
+        try:
+            decoded = base64.urlsafe_b64decode(token.encode()).decode()
+            parts = decoded.split(":")
+            if len(parts) != 3:
+                return False
+            token_admin_id, timestamp, signature = parts
+
+            # 验证 admin_id
+            if str(token_admin_id) != str(admin_id):
+                return False
+
+            # 验证时间戳（24小时有效）
+            if time.time() - int(timestamp) > 86400:
+                return False
+
+            # 验证签名
+            data = f"{token_admin_id}:{timestamp}"
+            expected_signature = hmac.new(
+                CSRF_SECRET.encode(),
+                data.encode(),
+                hashlib.sha256
+            ).hexdigest()
+
+            return hmac.compare_digest(signature, expected_signature)
+        except Exception:
+            return False
 
     def current_admin(self, conn):
         token = self.cookie_token()
         if not token:
             return None
         row = conn.execute(
-            """SELECT a.* FROM admin_session s JOIN admin a ON a.id=s.admin_id
+            """SELECT a.*, s.last_activity_at FROM admin_session s JOIN admin a ON a.id=s.admin_id
                WHERE s.token=? AND s.expires_at>?""",
             (token, now_str()),
         ).fetchone()
+        if not row:
+            return None
+
+        # 检查会话活动超时（2小时无活动则过期）
+        last_activity = row.get("last_activity_at")
+        if last_activity:
+            if isinstance(last_activity, str):
+                last_activity = datetime.strptime(last_activity, "%Y-%m-%d %H:%M:%S")
+            if datetime.now() - last_activity > timedelta(hours=2):
+                conn.execute("DELETE FROM admin_session WHERE token=?", (token,))
+                return None
+
+        # 更新最后活动时间
+        conn.execute("UPDATE admin_session SET last_activity_at=? WHERE token=?", (now_str(), token))
         return row_dict(row)
 
     def require_admin(self, conn):
@@ -485,6 +691,18 @@ class App(BaseHTTPRequestHandler):
             self.fail(2001, "未登录 / Token 无效", 401)
             return None
         return admin
+
+    def require_csrf(self, conn, admin):
+        """验证 CSRF token（仅对修改操作）"""
+        if self.command in ("POST", "PUT", "DELETE"):
+            token = self.headers.get("X-CSRF-Token", "")
+            if not token:
+                self.fail(2003, "CSRF 验证失败", 403)
+                return False
+            if not self.verify_csrf_token(token, admin["id"]):
+                self.fail(2003, "CSRF 验证失败", 403)
+                return False
+        return True
 
     def do_GET(self):
         path = urlparse(self.path).path
@@ -505,7 +723,13 @@ class App(BaseHTTPRequestHandler):
         if path in ("", "/"):
             path = "/index.html"
         target = (ROOT / path.lstrip("/")).resolve()
-        if not str(target).startswith(str(ROOT)) or not target.exists() or target.is_dir():
+        # 严格的路径验证，防止路径遍历
+        try:
+            target.relative_to(ROOT)
+        except ValueError:
+            self.send_error(404)
+            return
+        if not target.exists() or target.is_dir():
             self.send_error(404)
             return
         data = target.read_bytes()
@@ -515,6 +739,10 @@ class App(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
+        # 添加安全响应头
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("X-XSS-Protection", "1; mode=block")
         self.end_headers()
         self.wfile.write(data)
 
@@ -535,14 +763,49 @@ class App(BaseHTTPRequestHandler):
                     return self.admin_logout(conn)
                 if path == "/admin/me" and method == "GET":
                     admin = self.require_admin(conn)
-                    return self.ok({"username": admin["username"]}) if admin else None
+                    if admin:
+                        csrf_token = self.generate_csrf_token(admin["id"])
+                        return self.ok({"username": admin["username"], "csrf_token": csrf_token})
+                    return None
+                # 健康检查接口 - 仅允许本地访问
+                if path == "/api/health" and method == "GET":
+                    client_ip = self.client_address[0]
+                    if client_ip not in ("127.0.0.1", "::1", "localhost"):
+                        return self.fail(403, "禁止访问", 403)
+                    return self.health_check(conn)
                 admin = self.require_admin(conn)
                 if not admin:
                     return
+                # 验证 CSRF token
+                if not self.require_csrf(conn, admin):
+                    return
                 return self.admin_routes(conn, admin, method, path)
+        except ValueError as exc:
+            logging.warning(f"请求验证失败: {exc}")
+            self.fail(4000, str(exc), 400)
         except Exception as exc:
-            traceback.print_exc()
+            logging.error(f"API 错误: {exc}\n{traceback.format_exc()}")
             self.fail(5000, "服务器繁忙,请稍后再试", 500)
+
+    def health_check(self, conn):
+        """健康检查接口"""
+        try:
+            conn.execute("SELECT 1")
+            redis_ok = False
+            if REDIS_URL:
+                r = redis_client()
+                if r:
+                    r.ping()
+                    redis_ok = True
+            return self.ok({
+                "status": "healthy",
+                "mysql": "ok",
+                "redis": "ok" if redis_ok else "disabled",
+                "timestamp": now_str()
+            })
+        except Exception as exc:
+            logging.error(f"健康检查失败: {exc}")
+            self.fail(5000, "服务不可用", 503)
 
     def public_stocks(self, conn):
         rows = conn.execute(
@@ -637,7 +900,8 @@ class App(BaseHTTPRequestHandler):
                 self.write_redeem_log(conn, code, cdk["product_id"], 5)
                 return self.fail(1005, "商品已下架")
             queue_key = redis_key("inventory", product["id"])
-            for attempt in range(8):
+            # 优化：减少重试次数，提高性能
+            for attempt in range(5):
                 inventory_id = r.lpop(queue_key)
                 if inventory_id is None:
                     break
@@ -656,6 +920,7 @@ class App(BaseHTTPRequestHandler):
                 fresh_inv = conn.execute("SELECT status FROM inventory WHERE id=? FOR UPDATE", (inv["id"],)).fetchone()
                 if not fresh or fresh["status"] != 0 or not fresh_inv or fresh_inv["status"] != 0:
                     conn.execute("ROLLBACK")
+                    # 库存未被使用，放回队列
                     if fresh_inv and fresh_inv["status"] == 0 and queue_key:
                         r.lpush(queue_key, str(inv["id"]))
                     return self.fail(1002, "卡密或库存已被处理")
@@ -673,6 +938,7 @@ class App(BaseHTTPRequestHandler):
                     (1, code, product["id"], ip, self.headers.get("User-Agent", "")[:255], 1, t),
                 )
                 conn.execute("COMMIT")
+                # 只有成功兑换后才设置IP限制
                 if ip_limit:
                     r.set(ip_redeem_limit_key(ip), "1", ex=ip_limit["delay"])
                 return self.ok({
@@ -685,8 +951,9 @@ class App(BaseHTTPRequestHandler):
                     conn.execute("ROLLBACK")
                 except Exception:
                     pass
+                # 回滚时将库存放回队列
                 if inv and queue_key:
-                    r.lpush(queue_key, inv["id"])
+                    r.lpush(queue_key, str(inv["id"]))
                 raise
         finally:
             r.eval(
@@ -706,15 +973,44 @@ class App(BaseHTTPRequestHandler):
         payload = self.read_json()
         username = str(payload.get("username", "")).strip()
         password = str(payload.get("password", ""))
+        ip = self.ip()
+
+        # 检查登录失败次数
+        allowed, lock_seconds = check_login_attempts(ip)
+        if not allowed:
+            logging.warning(f"登录尝试被锁定: IP={ip}, 剩余锁定时间={lock_seconds}秒")
+            return self.fail(2004, f"登录失败次数过多，请 {lock_seconds} 秒后再试", 429)
+
         admin = conn.execute("SELECT * FROM admin WHERE username=?", (username,)).fetchone()
         if not admin or not verify_password(password, admin["password_hash"]):
+            record_login_attempt(ip, False)
+            logging.warning(f"登录失败: username={username}, IP={ip}")
             return self.fail(2001, "账号或密码错误", 401)
+
+        # 登录成功，清除失败记录
+        record_login_attempt(ip, True)
+
+        # 清理该用户的旧会话
+        conn.execute("DELETE FROM admin_session WHERE admin_id=?", (admin["id"],))
+
         token = secrets.token_urlsafe(32)
         expires = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
-        conn.execute("INSERT INTO admin_session(token,admin_id,expires_at,created_at) VALUES(?,?,?,?)", (token, admin["id"], expires, now_str()))
-        conn.execute("UPDATE admin SET last_login_at=?,last_login_ip=? WHERE id=?", (now_str(), self.ip(), admin["id"]))
-        admin_log(conn, admin["id"], "login", username, self.ip())
-        self.ok({"username": username}, headers={"Set-Cookie": f"admin_session={token}; Path=/; HttpOnly; SameSite=Lax"})
+        now = now_str()
+        conn.execute(
+            "INSERT INTO admin_session(token,admin_id,expires_at,created_at,last_activity_at) VALUES(?,?,?,?,?)",
+            (token, admin["id"], expires, now, now)
+        )
+        conn.execute("UPDATE admin SET last_login_at=?,last_login_ip=? WHERE id=?", (now, ip, admin["id"]))
+        admin_log(conn, admin["id"], "login", username, ip)
+
+        # 设置安全的 Cookie
+        cookie_flags = "Path=/; HttpOnly; SameSite=Strict"
+        # 如果是 HTTPS，添加 Secure 标志
+        if self.headers.get("X-Forwarded-Proto") == "https" or self.command == "https":
+            cookie_flags += "; Secure"
+
+        logging.info(f"管理员登录成功: username={username}, IP={ip}")
+        self.ok({"username": username}, headers={"Set-Cookie": f"admin_session={token}; {cookie_flags}"})
 
     def ok(self, data=None, msg="ok", headers=None):
         self.send_json({"code": 0, "msg": msg, "data": data if data is not None else {}}, 200, headers)
@@ -723,7 +1019,11 @@ class App(BaseHTTPRequestHandler):
         token = self.cookie_token()
         if token:
             conn.execute("DELETE FROM admin_session WHERE token=?", (token,))
-        self.ok({}, headers={"Set-Cookie": "admin_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"})
+            logging.info(f"管理员退出登录: token={token[:8]}...")
+        cookie_flags = "Path=/; Max-Age=0; HttpOnly; SameSite=Strict"
+        if self.headers.get("X-Forwarded-Proto") == "https":
+            cookie_flags += "; Secure"
+        self.ok({}, headers={"Set-Cookie": f"admin_session=; {cookie_flags}"})
 
     def admin_routes(self, conn, admin, method, path):
         if path == "/admin/dashboard/summary" and method == "GET":
@@ -754,12 +1054,15 @@ class App(BaseHTTPRequestHandler):
         if path.startswith("/admin/products/") and method == "PUT":
             pid = int(path.rsplit("/", 1)[-1])
             p = self.read_json()
-            fields = ["name", "intro", "usage_text", "cdk_prefix", "full_threshold", "status"]
-            updates = [f"{f}=?" for f in fields if f in p]
-            values = [str(p[f]).upper() if f == "cdk_prefix" else p[f] for f in fields if f in p]
-            if updates:
-                conn.execute(f"UPDATE product SET {','.join(updates)},updated_at=? WHERE id=?", (*values, now_str(), pid))
-                admin_log(conn, admin["id"], "edit_product", f"#{pid}", self.ip())
+            # 白名单字段，防止SQL注入
+            allowed_fields = {"name", "intro", "usage_text", "cdk_prefix", "full_threshold", "status"}
+            fields = [f for f in allowed_fields if f in p]
+            if not fields:
+                return self.ok()
+            updates = [f"{f}=?" for f in fields]
+            values = [str(p[f]).upper() if f == "cdk_prefix" else p[f] for f in fields]
+            conn.execute(f"UPDATE product SET {','.join(updates)},updated_at=? WHERE id=?", (*values, now_str(), pid))
+            admin_log(conn, admin["id"], "edit_product", f"#{pid}", self.ip())
             return self.ok()
         if path.startswith("/admin/products/") and method == "DELETE":
             pid = int(path.rsplit("/", 1)[-1])
@@ -789,19 +1092,30 @@ class App(BaseHTTPRequestHandler):
             lines = raw if isinstance(raw, list) else str(raw).splitlines()
             lines = [x.strip() for x in lines if x.strip()]
             batch_no = datetime.now().strftime("%Y%m%d%H%M%S")
-            if mode == "overwrite":
-                conn.execute("DELETE FROM inventory WHERE product_id=? AND status=0", (product_id,))
-            if mode == "dedupe":
-                lines = list(dict.fromkeys(lines))
-                exists = set(r["content"] for r in conn.execute("SELECT content FROM inventory WHERE product_id=?", (product_id,)))
-                lines = [x for x in lines if x not in exists]
-            conn.executemany(
-                "INSERT INTO inventory(product_id,content,status,expire_at,batch_no,created_at) VALUES(?,?,?,?,?,?)",
-                [(product_id, line, 0, None, batch_no, now_str()) for line in lines],
-            )
-            rebuild_inventory_queue(conn, product_id)
-            admin_log(conn, admin["id"], "import_inventory", f"product #{product_id} +{len(lines)}", self.ip())
-            return self.ok({"count": len(lines), "batch_no": batch_no})
+
+            # 使用事务保证数据一致性
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                if mode == "overwrite":
+                    conn.execute("DELETE FROM inventory WHERE product_id=? AND status=0", (product_id,))
+                if mode == "dedupe":
+                    lines = list(dict.fromkeys(lines))
+                    exists = set(r["content"] for r in conn.execute("SELECT content FROM inventory WHERE product_id=?", (product_id,)))
+                    lines = [x for x in lines if x not in exists]
+                conn.executemany(
+                    "INSERT INTO inventory(product_id,content,status,expire_at,batch_no,created_at) VALUES(?,?,?,?,?,?)",
+                    [(product_id, line, 0, None, batch_no, now_str()) for line in lines],
+                )
+                conn.execute("COMMIT")
+                rebuild_inventory_queue(conn, product_id)
+                admin_log(conn, admin["id"], "import_inventory", f"product #{product_id} +{len(lines)}", self.ip())
+                return self.ok({"count": len(lines), "batch_no": batch_no})
+            except Exception:
+                try:
+                    conn.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
         if path.startswith("/admin/inventory/") and method == "DELETE":
             iid = int(path.rsplit("/", 1)[-1])
             row = conn.execute("SELECT product_id FROM inventory WHERE id=?", (iid,)).fetchone()
@@ -884,10 +1198,16 @@ class App(BaseHTTPRequestHandler):
             row = conn.execute("SELECT * FROM admin WHERE id=?", (admin["id"],)).fetchone()
             if not verify_password(str(p.get("old_password", "")), row["password_hash"]):
                 return self.fail(2002, "原密码错误", 400)
-            if str(p.get("new_password", "")) != str(p.get("confirm_password", "")) or len(str(p.get("new_password", ""))) < 6:
-                return self.fail(2002, "新密码至少 6 位,且两次输入需一致", 400)
-            conn.execute("UPDATE admin SET password_hash=? WHERE id=?", (hash_password(str(p.get("new_password"))), admin["id"]))
+            new_pwd = str(p.get("new_password", ""))
+            if new_pwd != str(p.get("confirm_password", "")):
+                return self.fail(2002, "两次输入的新密码不一致", 400)
+            if len(new_pwd) < 6:
+                return self.fail(2002, "新密码至少 6 位", 400)
+            conn.execute("UPDATE admin SET password_hash=? WHERE id=?", (hash_password(new_pwd), admin["id"]))
+            # 修改密码后清除所有会话，强制重新登录
+            conn.execute("DELETE FROM admin_session WHERE admin_id=?", (admin["id"],))
             admin_log(conn, admin["id"], "change_password", admin["username"], self.ip())
+            logging.info(f"管理员修改密码: username={admin['username']}")
             return self.ok()
         self.fail(404, "接口不存在", 404)
 
@@ -995,8 +1315,8 @@ def application(environ, start_response):
         else:
             req.serve_static(path)
         return req.finish(start_response)
-    except Exception:
-        traceback.print_exc()
+    except Exception as exc:
+        logging.error(f"WSGI 错误: {exc}\n{traceback.format_exc()}")
         payload = {"code": 5000, "msg": "服务器繁忙,请稍后再试", "data": {}}
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         start_response("503 Service Unavailable", [
@@ -1008,6 +1328,7 @@ def application(environ, start_response):
 
 if __name__ == "__main__":
     ensure_started()
-    print(f"CDK 兑换系统已启动: http://{HOST}:{PORT}")
-    print("默认后台账号: Fyanxv / Fyb2530+")
+    logging.info(f"CDK 兑换系统已启动: http://{HOST}:{PORT}")
+    logging.info("后台登录地址: /login.html")
+    logging.info("健康检查接口: /api/health")
     LocalHTTPServer((HOST, PORT), App).serve_forever()

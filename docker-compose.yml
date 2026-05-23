@@ -20,19 +20,35 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
   redis:
     image: redis:7-alpine
     container_name: duihuan-redis
     restart: always
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "change_redis_password"]
     volumes:
       - ./redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "change_redis_password", "ping"]
       interval: 10s
       timeout: 5s
       retries: 20
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
 
   duihuan:
     build: .
@@ -50,7 +66,7 @@ services:
       PORT: 8877
       WEB_WORKERS: 4
       WEB_THREADS: 8
-      WEB_TIMEOUT: 60
+      WEB_TIMEOUT: 120
       STARTUP_WAIT_SECONDS: 120
       MYSQL_POOL_SIZE: 12
       MYSQL_POOL_WAIT_SECONDS: 5
@@ -59,7 +75,18 @@ services:
       MYSQL_USER: duihuan
       MYSQL_PASSWORD: "change_duihuan_password"
       MYSQL_DATABASE: duihuan
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:change_redis_password@redis:6379/0
       REDIS_PREFIX: duihuan
       ADMIN_USERNAME: Fyanxv
       ADMIN_PASSWORD: "Fyb2530+"
+      CSRF_SECRET: "change_csrf_secret_to_a_long_random_string"
+      MAX_REQUEST_BODY_SIZE: 10485760
+      TRUSTED_PROXIES: "127.0.0.1,::1,172.16.0.0/12"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
